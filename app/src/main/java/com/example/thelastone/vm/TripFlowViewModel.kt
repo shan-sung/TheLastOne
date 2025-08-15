@@ -11,49 +11,63 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed interface TripUiState {
-    data object Idle : TripUiState
-    data object Loading : TripUiState
-    data class Preview(val trip: Trip) : TripUiState
-    data class Saved(val tripId: String) : TripUiState
-    data class Error(val message: String) : TripUiState
+sealed interface UiState<out T> {
+    data object Idle : UiState<Nothing>
+    data object Loading : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+    data class Error(val message: String, val cause: Throwable? = null) : UiState<Nothing>
 }
 
 @HiltViewModel
 class TripFlowViewModel @Inject constructor(
-    private val repo: TripRepository
+    private val repo: TripRepository,
+    private val session: UserSession // 只需提供 currentUserId
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow<TripUiState>(TripUiState.Idle)
-    val state: StateFlow<TripUiState> = _state
+    // --- Create 表單狀態 ---
+    var formState by mutableStateOf(
+        TripForm(
+            name = "",
+            totalBudget = null,
+            startDate = "", endDate = "",
+            transportPreferences = emptyList(),
+            useGmapsRating = true,
+            styles = emptyList()
+        )
+    )
+        private set
 
-    // 表單送出 → 要求 AI 產生預覽 Trip
-    fun submitForm(form: TripForm) {
-        _state.value = TripUiState.Loading
+    fun updateForm(reducer: (TripForm) -> TripForm) {
+        formState = reducer(formState)
+    }
+
+    // --- Preview 結果 ---
+    var previewTrip by mutableStateOf<Trip?>(null)
+        private set
+
+    fun createPreview(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
         viewModelScope.launch {
             try {
-                val preview = repo.createTrip(form)
-                _state.value = TripUiState.Preview(preview)
-            } catch (e: Exception) {
-                _state.value = TripUiState.Error(e.message ?: "Create failed")
+                val preview = repo.createTrip(formState)
+                previewTrip = preview
+                onSuccess()
+            } catch (t: Throwable) {
+                onError(t)
             }
         }
     }
 
-    // 預覽頁按「確認」→ 儲存 Trip（入庫）→ 回傳正式 tripId
-    fun confirmSave(previewTrip: Trip) {
-        _state.value = TripUiState.Loading
+    fun confirmSave(onSuccess: (Trip) -> Unit, onError: (Throwable) -> Unit) {
+        val toSave = previewTrip ?: return
         viewModelScope.launch {
             try {
-                val saved = repo.saveTrip(previewTrip)
-                _state.value = TripUiState.Saved(saved.id)
-            } catch (e: Exception) {
-                _state.value = TripUiState.Error(e.message ?: "Save failed")
+                // 保險：在存檔時把 createdBy 設為當前使用者（也可由 repo 做）
+                val normalized = toSave.copy(createdBy = session.currentUserId)
+                val final = repo.saveTrip(normalized)
+                onSuccess(final)
+            } catch (t: Throwable) {
+                onError(t)
             }
         }
-    }
-
-    fun reset() {
-        _state.value = TripUiState.Idle
     }
 }
