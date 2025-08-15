@@ -1,38 +1,28 @@
 package com.example.thelastone.data.model
 
 data class Trip(
-    val id: String,                  // MongoDB _id
+    val id: String,
+    val createdBy: String,
     val name: String,
-    val ownerId: String,              // 建立者
-    val memberIds: List<String> = emptyList(), // 參加者
-    val budget: Int?,                 // 總預算
-    val dateRange: DateRange,
-    val transportPreferences: List<String> = emptyList(), // ["Car", "Bus", "Walk"...]
+    val totalBudget: Int?,
+    val startDate: String,
+    val endDate: String,
+    val transportPreferences: List<String>,
     val useGmapsRating: Boolean,
-    val styles: List<String> = emptyList(),               // 旅遊風格
-    val schedule: List<DaySchedule> = emptyList(),        // AI生成或後續編輯
-    val createdAt: Long
-)
-
-data class DateRange(
-    val start: String,  // ISO "YYYY-MM-DD"
-    val end: String
+    val styles: List<String>,
+    val members: List<User> = emptyList(),
+    val days: List<DaySchedule> = emptyList()
 )
 
 data class DaySchedule(
-    val date: String,
-    val activities: MutableList<Activity> = mutableListOf()
+    val date: String,              // "yyyy-MM-dd"
+    val activities: List<Activity> = emptyList()
 )
 
 data class Activity(
-    val placeId: String,
-    val name: String,
-    val lat: Double,
-    val lng: Double,
-    val startTime: String? = null,     // "HH:mm"
-    val endTime: String? = null,
-    val note: String? = null,          // 備註
-    val rating: Double? = null,
-    val userRatingsTotal: Int? = null,
-    val address: String? = null
+    val id: String,                 // 後端生成或 UUID
+    val place: Place,
+    val startTime: String? = null,  // "09:00"
+    val endTime: String? = null,    // "11:30"
+    val note: String? = null
 )

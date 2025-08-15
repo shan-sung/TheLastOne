@@ -1,10 +1,10 @@
 package com.example.thelastone.data.model
 
 data class Message(
-    val id: String,                    // MongoDB _id
+    val id: String,
     val tripId: String,
-    val senderId: String,
+    val sender: User,
     val text: String,
-    val timestamp: Long,
-    val isAI: Boolean = false
+    val timestamp: Long,           // 毫秒
+    val isAi: Boolean = false      // 系統 AI 訊息
 )

@@ -1,13 +1,8 @@
 package com.example.thelastone.data.model
 
 data class SavedPlace(
-    val placeId: String,          // Google Maps Place ID
-    val name: String,
-    val lat: Double,
-    val lng: Double,
-    val rating: Double?,
-    val userRatingsTotal: Int?,
-    val address: String?,
-    val openingHours: List<String>? = null, // 營業時間 (每天一條字串)
-    val photoUrl: String? = null
+    val id: String,                // 唯一 ID（可以是 placeId 或後端生成）
+    val userId: String,            // 收藏者 ID
+    val place: Place,
+    val savedAt: Long              // 時間戳記（毫秒）
 )
