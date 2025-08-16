@@ -6,5 +6,11 @@ data class Message(
     val sender: User,
     val text: String,
     val timestamp: Long,           // 毫秒
-    val isAi: Boolean = false      // 系統 AI 訊息
+    val isAi: Boolean = false,     // 系統 AI 訊息
+    val suggestions: List<PlaceLite>? = null // ← AI 訊息可帶三個建議地點
+)
+
+data class AnalysisResult(
+    val aiText: String,
+    val suggestions: List<PlaceLite>
 )

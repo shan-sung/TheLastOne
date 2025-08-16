@@ -4,10 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.thelastone.data.model.Activity
-import com.example.thelastone.data.model.Place
 import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.toFull
+import com.example.thelastone.data.model.toLite
 import com.example.thelastone.data.repo.TripRepository
 import com.example.thelastone.utils.decodePlaceArg
 import com.example.thelastone.utils.findDayIndexByDate
@@ -195,7 +195,3 @@ class AddActivityViewModel @Inject constructor(
         }
     }
 }
-
-// 依你的 PlaceLite 欄位調整
-private fun Place.toLite(): PlaceLite =
-    PlaceLite(placeId = placeId, name = name, lat = lat, lng = lng, address = address)
