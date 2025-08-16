@@ -7,10 +7,10 @@ import kotlinx.coroutines.flow.Flow
 
 interface TripRepository {
     /** 建立行程（送出表單→後端 AI 產生預覽用行程，尚未入庫） */
-    suspend fun createTrip(form: TripForm): Trip
+    suspend fun createTrip(createdBy: String, form: TripForm): Trip
 
     /** 確認並儲存行程（把預覽行程入庫，回傳正式 Trip） */
-    suspend fun saveTrip(trip: Trip): Trip
+    suspend fun saveTrip(createdBy: String, trip: Trip): Trip
 
     /** 取得某位使用者的所有行程清單 */
     suspend fun getMyTrips(userId: String): List<Trip>

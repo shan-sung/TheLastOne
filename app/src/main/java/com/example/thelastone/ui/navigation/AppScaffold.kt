@@ -87,10 +87,9 @@ fun AppScaffold() {
             )
         },
         bottomBar = {
-            AppBottomBar(
-                nav = nav,
-                currentDestination = currentDest
-            )
+            if (currentDest?.route !in NO_BOTTOM_BAR_ROUTES) {
+                AppBottomBar(nav = nav, currentDestination = currentDest)
+            }
         },
         // ✅ FAB 放在頂層，依路由顯示
         floatingActionButtonPosition = FabPosition.End,
@@ -144,7 +143,6 @@ fun AppScaffold() {
                     CreateTripFormScreen(
                         padding = padding,
                         onPreview = { nav.navigate(TripRoutes.Preview) },
-                        onCancel = { nav.navigateUp() },
                         viewModel = vm
                     )
                 }
@@ -259,6 +257,15 @@ private fun AppTopBar(
     )
 }
 
+private val NO_BOTTOM_BAR_ROUTES = setOf(
+    TripRoutes.Create,
+    TripRoutes.Preview,
+    TripRoutes.Detail,
+    TripRoutes.Chat,
+    MiscRoutes.SearchPlaces,
+    MiscRoutes.SearchUsers,
+    MiscRoutes.EditProfile,
+)
 @Composable
 private fun AppBottomBar(
     nav: NavHostController,

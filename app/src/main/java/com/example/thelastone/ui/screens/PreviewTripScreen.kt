@@ -64,7 +64,7 @@ fun PreviewTripScreen(
                 )
             }
             is TripFormViewModel.PreviewUiState.Data -> {
-                Text("預覽：${p.trip.name}", style = MaterialTheme.typography.titleLarge)
+                Text(p.trip.name, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 Text("日期：${p.trip.startDate} ～ ${p.trip.endDate}")
                 Spacer(Modifier.height(8.dp))

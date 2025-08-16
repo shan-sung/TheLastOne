@@ -3,6 +3,7 @@ package com.example.thelastone.data.fakerepo
 // ====== FakeTripRepository（修正版，使用 java.time） ======
 
 import com.example.thelastone.data.model.Activity
+import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.DaySchedule
 import com.example.thelastone.data.model.Place
 import com.example.thelastone.data.model.Trip
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -25,28 +27,28 @@ class FakeTripRepository : TripRepository {
     private val trips = ConcurrentHashMap<String, Trip>()
     private val _allTripsFlow = MutableStateFlow<List<Trip>>(emptyList())
 
-    // 共用日期格式 & 排序 helper
     private val dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private fun Trip.startLocalDate(): LocalDate = LocalDate.parse(startDate, dateFmt)
 
     init { seedDemoTrips(); emitAll() }
 
     private fun emitAll() {
-        // 用 LocalDate 排序，避免字串排序未來改格式造成抖動
         _allTripsFlow.value = trips.values.sortedBy { it.startLocalDate() }
     }
-
 
     private fun seedDemoTrips() {
         val today = LocalDate.now()
         val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-        fun trip(
+        fun mkTrip(
             name: String,
             start: LocalDate,
             daysCount: Long,
-            createdBy: String = "demo-user", // 跟你的畫面 userId 對齊
-            members: List<User> = listOf(User(id = "friend-1", email = "a@b.com", name = "Alice"))
+            createdBy: String = "demo-user",
+            members: List<User> = listOf(User(id = "friend-1", email = "a@b.com", name = "Alice")),
+            activityStart: String? = "09:00",
+            activityEnd: String? = "18:00",
+            avgAge: AgeBand = AgeBand.A18_25
         ): Trip {
             val startStr = start.format(fmt)
             val endStr = start.plusDays(daysCount - 1).format(fmt)
@@ -54,16 +56,24 @@ class FakeTripRepository : TripRepository {
             val daySchedules = dayStrings.map { d ->
                 DaySchedule(
                     date = d,
-                    activities = mockActivitiesForDay(d, preferHighRating = true)
+                    activities = mockActivitiesForDay(
+                        date = d,
+                        preferHighRating = true,
+                        start = activityStart,
+                        end = activityEnd
+                    )
                 )
             }
             return Trip(
                 id = "trip-${UUID.randomUUID()}",
                 createdBy = createdBy,
                 name = name,
-                totalBudget = 15000, // 單位：元
+                totalBudget = 15000,
                 startDate = startStr,
                 endDate = endStr,
+                activityStart = activityStart,      // ✅
+                activityEnd = activityEnd,          // ✅
+                avgAge = avgAge,                    // ✅
                 transportPreferences = listOf("Walk", "MRT"),
                 useGmapsRating = true,
                 styles = listOf("Foodie", "Relax"),
@@ -72,32 +82,39 @@ class FakeTripRepository : TripRepository {
             )
         }
 
-        val t1 = trip("台北 2 日小旅行", today.plusDays(1), 2)
-        val t2 = trip("台中美食行", today.plusDays(10), 3)
-        val t3 = trip("朋友邀請示例", today.plusDays(5), 2, createdBy = "someone-else")
+        val t1 = mkTrip("台北 2 日小旅行", today.plusDays(1), 2)
+        val t2 = mkTrip("台中美食行", today.plusDays(10), 3)
+        val t3 = mkTrip("朋友邀請示例", today.plusDays(5), 2, createdBy = "someone-else")
 
         trips[t1.id] = t1
         trips[t2.id] = t2
         trips[t3.id] = t3
     }
 
-
     // === 建立預覽 Trip：模擬後端 AI 產生 ===
-    override suspend fun createTrip(form: TripForm): Trip {
+    override suspend fun createTrip(createdBy: String, form: TripForm): Trip {
         delay(600)
 
         val days = enumerateDates(form.startDate, form.endDate).map { date ->
-            val activities = mockActivitiesForDay(date, form.useGmapsRating)
+            val activities = mockActivitiesForDay(
+                date = date,
+                preferHighRating = form.useGmapsRating,
+                start = form.activityStart,
+                end = form.activityEnd
+            )
             DaySchedule(date = date, activities = activities)
         }
 
         return Trip(
             id = "preview-${UUID.randomUUID()}",
-            createdBy = "demo-user",
+            createdBy = createdBy,                 // ✅ 用呼叫者 id
             name = form.name,
-            totalBudget = form.totalBudget,                  // 單位：元（Int）
+            totalBudget = form.totalBudget,
             startDate = form.startDate,
             endDate = form.endDate,
+            activityStart = form.activityStart,    // ✅
+            activityEnd = form.activityEnd,        // ✅
+            avgAge = form.avgAge,                  // ✅
             transportPreferences = form.transportPreferences,
             useGmapsRating = form.useGmapsRating,
             styles = form.styles,
@@ -107,12 +124,12 @@ class FakeTripRepository : TripRepository {
     }
 
     // === 確認儲存：把預覽 Trip 入庫並給正式 id ===
-    override suspend fun saveTrip(trip: Trip): Trip {
+    override suspend fun saveTrip(createdBy: String, trip: Trip): Trip {
         delay(200)
         val finalId = if (trip.id.startsWith("preview-")) "trip-${UUID.randomUUID()}" else trip.id
-        val saved = trip.copy(id = finalId)
+        val saved = trip.copy(id = finalId, createdBy = createdBy) // ✅ 以呼叫者為準
         trips[finalId] = saved
-        emitAll()                            // ★ 通知觀察者
+        emitAll()
         return saved
     }
 
@@ -171,7 +188,7 @@ class FakeTripRepository : TripRepository {
         emitAll()
     }
 
-    // ---------- helpers (mock AI / Google Places) ----------
+    // ---------- helpers ----------
     private fun enumerateDates(start: String, end: String): List<String> {
         val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
         val s = LocalDate.parse(start, fmt)
@@ -182,14 +199,32 @@ class FakeTripRepository : TripRepository {
         }.map { it.format(fmt) }.toList()
     }
 
-    private fun mockActivitiesForDay(date: String, preferHighRating: Boolean): List<Activity> {
+    private fun mockActivitiesForDay(
+        date: String,
+        preferHighRating: Boolean,
+        start: String? = null,
+        end: String? = null
+    ): List<Activity> {
         val count = Random.nextInt(2, 4)
+        val tfmt = DateTimeFormatter.ofPattern("HH:mm")
+        val s = start?.let { LocalTime.parse(it, tfmt) } ?: LocalTime.of(9, 0)
+        val e = end?.let { LocalTime.parse(it, tfmt) } ?: LocalTime.of(18, 0)
+
+        fun randTimeInRange(): Pair<String, String> {
+            val startHour = Random.nextInt(s.hour, maxOf(s.hour + 1, e.hour))
+            val st = LocalTime.of(startHour, listOf(0, 30).random())
+            val en = st.plusMinutes(listOf(60L, 90L, 120L).random())
+            val capped = minOf(en, LocalTime.of(23, 59))   // ✅ 修掉 coerceAtMost
+            return st.format(tfmt) to capped.format(tfmt)
+        }
+
         return (1..count).map { idx ->
             val rating = if (preferHighRating) Random.nextDouble(4.2, 4.9) else Random.nextDouble(3.5, 4.8)
+            val (st, en) = randTimeInRange()
             val place = Place(
                 placeId = "gplace_${date}_$idx",
                 name = "Place $idx on $date",
-                rating = rating,                                // Double?
+                rating = rating,
                 userRatingsTotal = Random.nextInt(50, 2500),
                 address = "Some address $idx",
                 openingHours = listOf("Mon–Sun: 09:00–18:00"),
@@ -201,8 +236,8 @@ class FakeTripRepository : TripRepository {
             Activity(
                 id = "act_${UUID.randomUUID()}",
                 place = place,
-                startTime = listOf("09:00", "10:00", "13:30").random(),
-                endTime   = listOf("11:00", "12:00", "15:00").random(),
+                startTime = st,
+                endTime = en,
                 note = null
             )
         }

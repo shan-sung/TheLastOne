@@ -7,6 +7,9 @@ data class Trip(
     val totalBudget: Int?,
     val startDate: String,
     val endDate: String,
+    val activityStart: String?, // 新增
+    val activityEnd: String?, // 新增
+    val avgAge: AgeBand, // 新增
     val transportPreferences: List<String>,
     val useGmapsRating: Boolean,
     val styles: List<String>,
