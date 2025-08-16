@@ -18,6 +18,7 @@ interface TripRepository {
 
     /** 取得某個行程的詳細內容 */
     suspend fun getTripDetail(tripId: String): Trip
+    fun observeTripDetail(tripId: String): Flow<Trip>
 
     /** 新增行程點到某一天 */
     suspend fun addActivity(tripId: String, dayIndex: Int, activity: Activity)

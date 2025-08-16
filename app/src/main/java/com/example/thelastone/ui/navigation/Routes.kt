@@ -29,6 +29,19 @@ object TripRoutes {
     // Flow 外（或同層）細節頁（建議不放在 Flow 內，以便直接深連）
     const val Detail = "trip/{tripId}"
     fun detail(tripId: String) = "trip/$tripId"
+    // 新增：挑地點
+    const val PickPlace = "trip/{tripId}/pick-place"
+    fun pickPlace(tripId: String) = "trip/$tripId/pick-place"
+
+    // 新增：填活動資訊（把選中的 place 以 JSON 傳過去）
+    const val AddActivity = "trip/{tripId}/add-activity?placeJson={placeJson}"
+    fun addActivity(tripId: String, placeJsonEncoded: String) =
+        "trip/$tripId/add-activity?placeJson=$placeJsonEncoded"
+
+    // 可選：編輯活動
+    const val EditActivity = "trip/{tripId}/activity/{dayIndex}/{activityIndex}/edit"
+    fun editActivity(tripId: String, day: Int, idx: Int) =
+        "trip/$tripId/activity/$day/$idx/edit"
 
     const val Chat = "trip/{tripId}/chat"
     fun chat(tripId: String) = "trip/$tripId/chat"
@@ -39,10 +52,6 @@ object MiscRoutes {
     const val SearchPlaces = "search/places"
     const val SearchUsers  = "search/users"
     const val EditProfile  = "profile/edit"
-
-    // 地圖選點（帶 tripId）
-    const val MapPicker = "trip/{tripId}/pick_place"
-    fun mapPicker(tripId: String) = "trip/$tripId/pick_place"
 }
 
 

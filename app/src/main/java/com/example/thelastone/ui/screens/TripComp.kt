@@ -114,7 +114,7 @@ fun LazyListScope.dayTabsAndActivities(
     stickyHeader {
         ScrollableTabRow(
             selectedTabIndex = selected,
-            containerColor = Color.Transparent,
+            containerColor = MaterialTheme.colorScheme.surface,
             edgePadding = 0.dp,
             indicator = { pos ->
                 TabRowDefaults.Indicator(

@@ -40,10 +40,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.thelastone.ui.screens.AddActivityScreen
 import com.example.thelastone.ui.screens.form.CreateTripFormScreen
 import com.example.thelastone.ui.screens.EditProfileScreen
 import com.example.thelastone.ui.screens.ExploreScreen
 import com.example.thelastone.ui.screens.FriendsScreen
+import com.example.thelastone.ui.screens.PickPlaceScreen
 import com.example.thelastone.ui.screens.myTrips.MyTripsScreen
 import com.example.thelastone.ui.screens.PreviewTripScreen
 import com.example.thelastone.ui.screens.ProfileScreen
@@ -71,7 +73,6 @@ fun AppScaffold() {
         modifier =
             Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            if (currentDest?.route !in NO_TOP_BAR_ROUTES) {
                 AppTopBar(
                     destination = currentDest,
                     isTopLevel = isTopLevel,
@@ -86,7 +87,6 @@ fun AppScaffold() {
                     onOpenTripMore = { /* TODO: 開啟 BottomSheet / Menu */ },
                     scrollBehavior = scroll
                 )
-            }
         },
         bottomBar = {
             if (currentDest?.route !in NO_BOTTOM_BAR_ROUTES) {
@@ -165,12 +165,70 @@ fun AppScaffold() {
                 }
             }
 
-
             // ===== Trip 細節頁（可深連）=====
             composable(
                 route = TripRoutes.Detail,
                 arguments = listOf(navArgument("tripId") { type = NavType.StringType })
-            ) { TripDetailScreen(padding = padding) }
+            ) { entry ->
+                val tripId = entry.arguments?.getString("tripId") ?: return@composable
+
+                TripDetailScreen(
+                    padding = padding,
+                    onAddActivity = { id ->
+                        // 一般會等於 tripId，但用參數更彈性
+                        nav.navigate(TripRoutes.pickPlace(id))
+                    },
+                    onEditActivity = { id, dayIndex, activityIndex, _ ->
+                        // 導到編輯頁（自行定義你的 route）
+                        nav.navigate(TripRoutes.editActivity(id, dayIndex, activityIndex))
+                    }
+                    // onDeleteActivity 不傳 → 使用畫面內部 viewModel.removeActivity 處理
+                )
+            }
+
+
+            composable(
+                route = TripRoutes.PickPlace,
+                arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+            ) { entry ->
+                val tripId = entry.arguments?.getString("tripId")!!
+                PickPlaceScreen(padding = padding, nav = nav, tripId = tripId)
+            }
+
+            composable(
+                route = TripRoutes.AddActivity,
+                arguments = listOf(
+                    navArgument("tripId")    { type = NavType.StringType },
+                    navArgument("placeJson") { type = NavType.StringType }
+                )
+            ) { entry ->
+                val tripId    = entry.arguments?.getString("tripId")!!
+                val placeJson = entry.arguments?.getString("placeJson")!!
+                AddActivityScreen(
+                    padding = padding,
+                    tripId = tripId,
+                    placeJson = placeJson,
+                    nav = nav
+                )
+            }
+
+            composable(
+                route = TripRoutes.EditActivity,
+                arguments = listOf(
+                    navArgument("tripId")       { type = NavType.StringType },
+                    navArgument("dayIndex")     { type = NavType.IntType },
+                    navArgument("activityIndex"){ type = NavType.IntType }
+                )
+            ) {
+                // 直接重用 AddActivityScreen；Edit 模式不需要 placeJson
+                AddActivityScreen(
+                    padding = padding,
+                    tripId = it.arguments!!.getString("tripId")!!,
+                    placeJson = null,   // ← 重要：編輯時不帶 placeJson
+                    nav = nav
+                )
+            }
+
 
             composable(
                 route = TripRoutes.Chat,
@@ -187,10 +245,6 @@ fun AppScaffold() {
     // 非頂層頁顯示系統返回行為
     BackHandler(enabled = !isTopLevel) { nav.navigateUp() }
 }
-
-private val NO_TOP_BAR_ROUTES = setOf(
-    MiscRoutes.MapPicker // ★ 全螢幕頁加進來
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -216,6 +270,9 @@ private fun AppTopBar(
         route == TripRoutes.Create       -> "Create Trip"
         route == TripRoutes.Preview      -> "Preview Trip"
         route == TripRoutes.Detail       -> "Trip Detail"
+        route == TripRoutes.PickPlace -> "Pick Place"
+        route == TripRoutes.AddActivity -> "Add Activity"
+        route == TripRoutes.EditActivity -> "Edit Activity"
         route == TripRoutes.Chat         -> "Trip Chat"
         route == MiscRoutes.SearchPlaces -> "Search Places"
         route == MiscRoutes.SearchUsers  -> "Search Users"
@@ -271,7 +328,9 @@ private val NO_BOTTOM_BAR_ROUTES = setOf(
     MiscRoutes.SearchPlaces,
     MiscRoutes.SearchUsers,
     MiscRoutes.EditProfile,
-    MiscRoutes.MapPicker
+    TripRoutes.PickPlace,
+    TripRoutes.AddActivity,
+    TripRoutes.EditActivity
 )
 @Composable
 private fun AppBottomBar(

@@ -6,8 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.repo.TripRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,18 +31,28 @@ class TripDetailViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val tripId: String = checkNotNull(savedStateHandle["tripId"])
+    private val retry = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    private val _state = MutableStateFlow<TripDetailUiState>(TripDetailUiState.Loading)
-    val state: StateFlow<TripDetailUiState> = _state
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: StateFlow<TripDetailUiState> =
+        retry
+            .onStart { emit(Unit) } // 首次啟動
+            .flatMapLatest {
+                repo.observeTripDetail(tripId)
+                    .map< Trip, TripDetailUiState> { TripDetailUiState.Data(it) }
+                    .catch { emit(TripDetailUiState.Error(it.message ?: "Load failed")) }
+            }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                TripDetailUiState.Loading
+            )
 
-    init { load() }
-
-    fun load() {
+    fun removeActivity(dayIndex: Int, activityIndex: Int) {
         viewModelScope.launch {
-            _state.value = TripDetailUiState.Loading
-            runCatching { repo.getTripDetail(tripId) }
-                .onSuccess { _state.value = TripDetailUiState.Data(it) }
-                .onFailure { _state.value = TripDetailUiState.Error(it.message ?: "Load failed") }
+            runCatching { repo.removeActivity(tripId, dayIndex, activityIndex) }
+                .onFailure { /* TODO: Snackbar 或錯誤狀態 */ }
         }
     }
+    fun reload() { retry.tryEmit(Unit) } // 需要時仍可手動觸發
 }

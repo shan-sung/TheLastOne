@@ -314,10 +314,7 @@ fun CreateTripFormScreen(
                     viewModel.generatePreview()
                     onPreview()
                 }
-                // 若不合法：停在頁面，因為 submitted=true 已觸發錯誤顯示
             },
-            // 想讓按鈕一開始就可按：enabled = true
-            // 若仍想禁用直到合法，改成 enabled = allValid（但這樣按前就不會看到錯誤，符合你要的行為）
             enabled = true,
             modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) { Text("預覽") }

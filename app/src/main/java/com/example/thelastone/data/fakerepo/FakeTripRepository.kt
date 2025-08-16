@@ -25,16 +25,23 @@ import kotlin.random.Random
 class FakeTripRepository : TripRepository {
 
     private val trips = ConcurrentHashMap<String, Trip>()
-    private val _allTripsFlow = MutableStateFlow<List<Trip>>(emptyList())
+
+    // ✅ 單一真實來源：所有 Trip 的 Map
+    private val tripsState = MutableStateFlow<Map<String, Trip>>(emptyMap())
 
     private val dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private fun Trip.startLocalDate(): LocalDate = LocalDate.parse(startDate, dateFmt)
 
-    init { seedDemoTrips(); emitAll() }
-
-    private fun emitAll() {
-        _allTripsFlow.value = trips.values.sortedBy { it.startLocalDate() }
+    init {
+        seedDemoTrips()
+        emitAll()  // 第一次同步 trips -> tripsState
     }
+
+    // ✅ 把 Map 丟進 state，一律用它推播
+    private fun emitAll() {
+        tripsState.value = trips.toMap()
+    }
+
 
     private fun seedDemoTrips() {
         val today = LocalDate.now()
@@ -127,9 +134,9 @@ class FakeTripRepository : TripRepository {
     override suspend fun saveTrip(createdBy: String, trip: Trip): Trip {
         delay(200)
         val finalId = if (trip.id.startsWith("preview-")) "trip-${UUID.randomUUID()}" else trip.id
-        val saved = trip.copy(id = finalId, createdBy = createdBy) // ✅ 以呼叫者為準
+        val saved = trip.copy(id = finalId, createdBy = createdBy)
         trips[finalId] = saved
-        emitAll()
+        emitAll()                // ✅ 推播
         return saved
     }
 
@@ -140,27 +147,34 @@ class FakeTripRepository : TripRepository {
             .sortedBy { it.startLocalDate() }
     }
 
-    override fun observeMyTrips(userId: String): Flow<List<Trip>> {
-        return _allTripsFlow
-            .map { all ->
-                all.filter { t -> t.createdBy == userId || t.members.any { m -> m.id == userId } }
+    override fun observeMyTrips(userId: String): Flow<List<Trip>> =
+        tripsState
+            .map { map ->
+                map.values
+                    .filter { t -> t.createdBy == userId || t.members.any { m -> m.id == userId } }
                     .sortedBy { it.startLocalDate() }
             }
             .distinctUntilChanged()
-    }
+
 
     override suspend fun getTripDetail(tripId: String): Trip {
         delay(80)
         return trips[tripId] ?: error("Trip not found: $tripId")
     }
 
+    override fun observeTripDetail(tripId: String): Flow<Trip> =
+        tripsState
+            .map { it[tripId] ?: error("Trip not found: $tripId") }
+            .distinctUntilChanged()
+
     override suspend fun addActivity(tripId: String, dayIndex: Int, activity: Activity) {
         val t = trips[tripId] ?: error("Trip not found")
-        val days = t.days.toMutableList()
-        val day = days[dayIndex]
-        days[dayIndex] = day.copy(activities = day.activities + activity)
-        trips[tripId] = t.copy(days = days)
-        emitAll()
+        val newDays = t.days.toMutableList().apply {
+            val day = this[dayIndex]
+            this[dayIndex] = day.copy(activities = day.activities + activity)
+        }
+        trips[tripId] = t.copy(days = newDays)
+        emitAll()                // ✅ 推播（改回 emitAll）
     }
 
     override suspend fun updateActivity(tripId: String, dayIndex: Int, activityIndex: Int, updated: Activity) {
@@ -170,7 +184,7 @@ class FakeTripRepository : TripRepository {
         list[activityIndex] = updated
         days[dayIndex] = days[dayIndex].copy(activities = list)
         trips[tripId] = t.copy(days = days)
-        emitAll()
+        emitAll()                // ✅ 推播
     }
 
     override suspend fun removeActivity(tripId: String, dayIndex: Int, activityIndex: Int) {
@@ -180,12 +194,12 @@ class FakeTripRepository : TripRepository {
         list.removeAt(activityIndex)
         days[dayIndex] = days[dayIndex].copy(activities = list)
         trips[tripId] = t.copy(days = days)
-        emitAll()
+        emitAll()                // ✅ 推播
     }
 
     override suspend fun deleteTrip(tripId: String) {
         trips.remove(tripId)
-        emitAll()
+        emitAll()                // ✅ 推播
     }
 
     // ---------- helpers ----------
@@ -223,7 +237,7 @@ class FakeTripRepository : TripRepository {
             val (st, en) = randTimeInRange()
             val place = Place(
                 placeId = "gplace_${date}_$idx",
-                name = "Place $idx on $date",
+                name = "Place $idx",
                 rating = rating,
                 userRatingsTotal = Random.nextInt(50, 2500),
                 address = "Some address $idx",
