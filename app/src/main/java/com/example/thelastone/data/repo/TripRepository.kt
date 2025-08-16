@@ -14,6 +14,7 @@ interface TripRepository {
 
     /** 取得某位使用者的所有行程清單 */
     suspend fun getMyTrips(userId: String): List<Trip>
+    fun observeMyTrips(userId: String): Flow<List<Trip>>
 
     /** 取得某個行程的詳細內容 */
     suspend fun getTripDetail(tripId: String): Trip

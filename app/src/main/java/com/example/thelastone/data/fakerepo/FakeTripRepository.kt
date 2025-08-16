@@ -10,6 +10,8 @@ import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.model.User
 import com.example.thelastone.data.repo.TripRepository
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -19,9 +21,12 @@ import kotlin.random.Random
 class FakeTripRepository : TripRepository {
 
     private val trips = ConcurrentHashMap<String, Trip>()
+    private val _allTripsFlow = MutableStateFlow<List<Trip>>(emptyList())
 
-    init {
-        seedDemoTrips() // ← 啟動就塞幾筆
+    init { seedDemoTrips(); emitAll() }
+
+    private fun emitAll() {
+        _allTripsFlow.value = trips.values.sortedBy { it.startDate }
     }
 
     private fun seedDemoTrips() {
@@ -96,18 +101,21 @@ class FakeTripRepository : TripRepository {
     // === 確認儲存：把預覽 Trip 入庫並給正式 id ===
     override suspend fun saveTrip(trip: Trip): Trip {
         delay(200)
-        val finalId = if (trip.id.startsWith("preview-")) {
-            "trip-${UUID.randomUUID()}"
-        } else trip.id
-
+        val finalId = if (trip.id.startsWith("preview-")) "trip-${UUID.randomUUID()}" else trip.id
         val saved = trip.copy(id = finalId)
         trips[finalId] = saved
+        emitAll()                            // ★ 通知觀察者
         return saved
     }
 
     override suspend fun getMyTrips(userId: String): List<Trip> {
         delay(120)
         return trips.values.sortedBy { it.startDate }
+    }
+
+    override fun observeMyTrips(userId: String): Flow<List<Trip>> {
+        // 這裡維持「回傳所有，再由 UI 過濾『我建立的/我參加的』」的策略
+        return _allTripsFlow
     }
 
     override suspend fun getTripDetail(tripId: String): Trip {
@@ -121,6 +129,7 @@ class FakeTripRepository : TripRepository {
         val day = days[dayIndex]
         days[dayIndex] = day.copy(activities = day.activities + activity)
         trips[tripId] = t.copy(days = days)
+        emitAll()
     }
 
     override suspend fun updateActivity(tripId: String, dayIndex: Int, activityIndex: Int, updated: Activity) {
@@ -130,6 +139,7 @@ class FakeTripRepository : TripRepository {
         list[activityIndex] = updated
         days[dayIndex] = days[dayIndex].copy(activities = list)
         trips[tripId] = t.copy(days = days)
+        emitAll()
     }
 
     override suspend fun removeActivity(tripId: String, dayIndex: Int, activityIndex: Int) {
@@ -139,10 +149,12 @@ class FakeTripRepository : TripRepository {
         list.removeAt(activityIndex)
         days[dayIndex] = days[dayIndex].copy(activities = list)
         trips[tripId] = t.copy(days = days)
+        emitAll()
     }
 
     override suspend fun deleteTrip(tripId: String) {
         trips.remove(tripId)
+        emitAll()
     }
 
     // ---------- helpers (mock AI / Google Places) ----------
