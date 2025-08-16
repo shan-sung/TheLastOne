@@ -12,6 +12,8 @@ import com.example.thelastone.data.repo.TripRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -23,11 +25,17 @@ class FakeTripRepository : TripRepository {
     private val trips = ConcurrentHashMap<String, Trip>()
     private val _allTripsFlow = MutableStateFlow<List<Trip>>(emptyList())
 
+    // 共用日期格式 & 排序 helper
+    private val dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    private fun Trip.startLocalDate(): LocalDate = LocalDate.parse(startDate, dateFmt)
+
     init { seedDemoTrips(); emitAll() }
 
     private fun emitAll() {
-        _allTripsFlow.value = trips.values.sortedBy { it.startDate }
+        // 用 LocalDate 排序，避免字串排序未來改格式造成抖動
+        _allTripsFlow.value = trips.values.sortedBy { it.startLocalDate() }
     }
+
 
     private fun seedDemoTrips() {
         val today = LocalDate.now()
@@ -110,12 +118,18 @@ class FakeTripRepository : TripRepository {
 
     override suspend fun getMyTrips(userId: String): List<Trip> {
         delay(120)
-        return trips.values.sortedBy { it.startDate }
+        return trips.values
+            .filter { t -> t.createdBy == userId || t.members.any { m -> m.id == userId } }
+            .sortedBy { it.startLocalDate() }
     }
 
     override fun observeMyTrips(userId: String): Flow<List<Trip>> {
-        // 這裡維持「回傳所有，再由 UI 過濾『我建立的/我參加的』」的策略
         return _allTripsFlow
+            .map { all ->
+                all.filter { t -> t.createdBy == userId || t.members.any { m -> m.id == userId } }
+                    .sortedBy { it.startLocalDate() }
+            }
+            .distinctUntilChanged()
     }
 
     override suspend fun getTripDetail(tripId: String): Trip {

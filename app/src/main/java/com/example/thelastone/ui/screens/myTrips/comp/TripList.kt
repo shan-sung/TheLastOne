@@ -1,4 +1,4 @@
-package com.example.thelastone.ui.screens.MyTrips.comp
+package com.example.thelastone.ui.screens.myTrips.comp
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

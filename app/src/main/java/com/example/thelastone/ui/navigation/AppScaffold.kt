@@ -44,7 +44,7 @@ import com.example.thelastone.ui.screens.CreateTripFormScreen
 import com.example.thelastone.ui.screens.EditProfileScreen
 import com.example.thelastone.ui.screens.ExploreScreen
 import com.example.thelastone.ui.screens.FriendsScreen
-import com.example.thelastone.ui.screens.MyTrips.MyTripsScreen
+import com.example.thelastone.ui.screens.myTrips.MyTripsScreen
 import com.example.thelastone.ui.screens.PreviewTripScreen
 import com.example.thelastone.ui.screens.ProfileScreen
 import com.example.thelastone.ui.screens.SavedScreen

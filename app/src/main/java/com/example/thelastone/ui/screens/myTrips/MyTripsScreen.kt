@@ -1,5 +1,5 @@
 // ui/screens/MyTripsScreen.kt
-package com.example.thelastone.ui.screens.MyTrips
+package com.example.thelastone.ui.screens.myTrips
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,7 +9,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,8 +17,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.thelastone.data.model.Trip
-import com.example.thelastone.ui.screens.MyTrips.comp.TripList
+import com.example.thelastone.ui.screens.myTrips.comp.TripList
 import com.example.thelastone.ui.state.EmptyState
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
@@ -31,8 +32,7 @@ fun MyTripsScreen(
     openTrip: (String) -> Unit,
     vm: MyTripsViewModel = hiltViewModel()
 ) {
-    val state by vm.state.collectAsState()
-
+    val state by vm.state.collectAsStateWithLifecycle()
     data class TabSpec(
         val title: String,
         val select: (all: List<Trip>, userId: String) -> List<Trip>,
@@ -79,7 +79,7 @@ fun MyTripsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     title = "載入失敗",
                     message = s.message,
-                    onRetry = { vm.load() }
+                    onRetry = { vm.retry() }
                 )
             }
             is MyTripsUiState.Empty -> {
@@ -92,9 +92,10 @@ fun MyTripsScreen(
             }
             is MyTripsUiState.Data -> {
                 val tab = tabs[selectedTab]
-                val tabTrips = remember(s.trips, s.userId, selectedTab) {
-                    tab.select(s.trips, s.userId)  // ★ 傳入 userId
+                val tabTrips by remember(s.trips, s.userId, selectedTab) {
+                    derivedStateOf { tab.select(s.trips, s.userId) }
                 }
+
                 if (tabTrips.isEmpty()) {
                     EmptyState(
                         modifier = Modifier.fillMaxWidth(),
