@@ -1,5 +1,5 @@
 // CreateTripFormScreen.kt
-package com.example.thelastone.ui.screens
+package com.example.thelastone.ui.screens.form
 
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +29,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
@@ -281,7 +282,7 @@ fun CreateTripFormScreen(
                         Text("參考 Google 評分", style = MaterialTheme.typography.labelLarge)
                         Text("用較高評分做優先排序", style = MaterialTheme.typography.bodySmall)
                     }
-                    androidx.compose.material3.Switch(
+                    Switch(
                         checked = form.useGmapsRating,
                         onCheckedChange = viewModel::setUseGmapsRating
                     )

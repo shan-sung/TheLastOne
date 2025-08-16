@@ -39,7 +39,12 @@ object MiscRoutes {
     const val SearchPlaces = "search/places"
     const val SearchUsers  = "search/users"
     const val EditProfile  = "profile/edit"
+
+    // 地圖選點（帶 tripId）
+    const val MapPicker = "trip/{tripId}/pick_place"
+    fun mapPicker(tripId: String) = "trip/$tripId/pick_place"
 }
+
 
 data class TopLevelDestination(
     val route: String,

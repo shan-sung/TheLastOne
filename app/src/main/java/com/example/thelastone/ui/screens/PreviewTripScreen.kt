@@ -1,6 +1,7 @@
 // PreviewTripScreen.kt
 package com.example.thelastone.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,16 +13,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
@@ -30,65 +37,91 @@ import com.example.thelastone.vm.TripFormViewModel
 @Composable
 fun PreviewTripScreen(
     padding: PaddingValues,
+    viewModel: TripFormViewModel,
     onConfirmSaved: (String) -> Unit,
-    onBack: () -> Unit,
-    viewModel: TripFormViewModel
+    onBack: () -> Unit
 ) {
     val preview by viewModel.preview.collectAsState()
     val save by viewModel.save.collectAsState()
+    val context = LocalContext.current
 
-    // 儲存成功就導去 Detail
     LaunchedEffect(save) {
-        if (save is TripFormViewModel.SaveUiState.Success) {
-            onConfirmSaved((save as TripFormViewModel.SaveUiState.Success).tripId)
-            viewModel.resetSaveState()
+        when (save) {
+            is TripFormViewModel.SaveUiState.Success -> {
+                val id = (save as TripFormViewModel.SaveUiState.Success).tripId
+                viewModel.resetSaveState()
+                onConfirmSaved(id)
+            }
+            is TripFormViewModel.SaveUiState.Error -> {
+                Toast.makeText(context, (save as TripFormViewModel.SaveUiState.Error).message, Toast.LENGTH_SHORT).show()
+            }
+            else -> Unit
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-        when (val p = preview) {
-            TripFormViewModel.PreviewUiState.Idle -> {
-                Text("沒有預覽資料，請回到上一步。")
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onBack) { Text("返回") }
-            }
-            TripFormViewModel.PreviewUiState.Loading -> {
-                LoadingState(Modifier.fillMaxWidth())
-            }
-            is TripFormViewModel.PreviewUiState.Error -> {
-                ErrorState(
-                    modifier = Modifier.fillMaxWidth(),
-                    title = "預覽失敗",
-                    message = p.message,
-                    onRetry = { /* 依需求決定是否提供重試 */ }
-                )
-            }
-            is TripFormViewModel.PreviewUiState.Data -> {
-                Text(p.trip.name, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                Text("日期：${p.trip.startDate} ～ ${p.trip.endDate}")
-                Spacer(Modifier.height(8.dp))
-                Text("共 ${p.trip.days.size} 天，示意行程點：${p.trip.days.firstOrNull()?.activities?.size ?: 0} 個")
-                Spacer(Modifier.height(24.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onBack) { Text("返回修改") }
+    when (val p = preview) {
+        TripFormViewModel.PreviewUiState.Idle,
+        TripFormViewModel.PreviewUiState.Loading -> {
+            LoadingState(modifier = Modifier.padding(padding))
+        }
+        is TripFormViewModel.PreviewUiState.Error -> {
+            ErrorState(
+                modifier = Modifier.padding(padding),
+                title = "預覽失敗",
+                message = p.message,
+                retryLabel = "返回",
+                onRetry = onBack
+            )
+        }
+        is TripFormViewModel.PreviewUiState.Data -> {
+            val trip = p.trip
+            var selected by rememberSaveable { mutableIntStateOf(0) }
+
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // 內容區（與 CreateTripFormScreen 同姿勢）
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item { TripInfoCard(trip) }
+                    dayTabsAndActivities(
+                        trip = trip,
+                        selected = selected,
+                        onSelect = { selected = it },
+                        onActivityClick = { _, _, act ->
+                            Toast.makeText(context, "預覽中：${act.place.name}", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    item { Spacer(Modifier.height(8.dp)) }
+                }
+
+                // 底部動作列（與 CreateTripFormScreen 的底部按鈕列一致的排版）
+                val saving = save is TripFormViewModel.SaveUiState.Loading
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onBack,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("返回修改") }
+
                     Button(
-                        enabled = save !is TripFormViewModel.SaveUiState.Loading,
-                        onClick = { viewModel.confirmSave() }
+                        onClick = { viewModel.confirmSave() },
+                        enabled = !saving,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        if (save is TripFormViewModel.SaveUiState.Loading) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        if (saving) {
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                         }
                         Text("確認儲存")
                     }
-                }
-                if (save is TripFormViewModel.SaveUiState.Error) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = (save as TripFormViewModel.SaveUiState.Error).message,
-                        color = MaterialTheme.colorScheme.error
-                    )
                 }
             }
         }

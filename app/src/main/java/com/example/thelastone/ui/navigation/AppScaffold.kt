@@ -40,7 +40,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.thelastone.ui.screens.CreateTripFormScreen
+import com.example.thelastone.ui.screens.form.CreateTripFormScreen
 import com.example.thelastone.ui.screens.EditProfileScreen
 import com.example.thelastone.ui.screens.ExploreScreen
 import com.example.thelastone.ui.screens.FriendsScreen
@@ -71,20 +71,22 @@ fun AppScaffold() {
         modifier =
             Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            AppTopBar(
-                destination = currentDest,
-                isTopLevel = isTopLevel,
-                onBack = { nav.navigateUp() },
-                onExploreSearch = { nav.navigate(MiscRoutes.SearchPlaces) },
-                onFriendsSearch = { nav.navigate(MiscRoutes.SearchUsers) },
-                onEditProfile = { nav.navigate(MiscRoutes.EditProfile) },
-                onOpenTripChat = {
-                    val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
-                    nav.navigate(TripRoutes.chat(tripId))
-                },
-                onOpenTripMore = { /* TODO: 開啟 BottomSheet / Menu */ },
-                scrollBehavior = scroll
-            )
+            if (currentDest?.route !in NO_TOP_BAR_ROUTES) {
+                AppTopBar(
+                    destination = currentDest,
+                    isTopLevel = isTopLevel,
+                    onBack = { nav.navigateUp() },
+                    onExploreSearch = { nav.navigate(MiscRoutes.SearchPlaces) },
+                    onFriendsSearch = { nav.navigate(MiscRoutes.SearchUsers) },
+                    onEditProfile = { nav.navigate(MiscRoutes.EditProfile) },
+                    onOpenTripChat = {
+                        val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
+                        nav.navigate(TripRoutes.chat(tripId))
+                    },
+                    onOpenTripMore = { /* TODO: 開啟 BottomSheet / Menu */ },
+                    scrollBehavior = scroll
+                )
+            }
         },
         bottomBar = {
             if (currentDest?.route !in NO_BOTTOM_BAR_ROUTES) {
@@ -186,6 +188,10 @@ fun AppScaffold() {
     BackHandler(enabled = !isTopLevel) { nav.navigateUp() }
 }
 
+private val NO_TOP_BAR_ROUTES = setOf(
+    MiscRoutes.MapPicker // ★ 全螢幕頁加進來
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppTopBar(
@@ -265,6 +271,7 @@ private val NO_BOTTOM_BAR_ROUTES = setOf(
     MiscRoutes.SearchPlaces,
     MiscRoutes.SearchUsers,
     MiscRoutes.EditProfile,
+    MiscRoutes.MapPicker
 )
 @Composable
 private fun AppBottomBar(
