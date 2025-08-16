@@ -2,10 +2,7 @@ package com.example.thelastone.ui.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -13,14 +10,25 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -32,8 +40,19 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.thelastone.ui.screens.*
+import com.example.thelastone.ui.screens.CreateTripFormScreen
+import com.example.thelastone.ui.screens.EditProfileScreen
+import com.example.thelastone.ui.screens.ExploreScreen
+import com.example.thelastone.ui.screens.FriendsScreen
 import com.example.thelastone.ui.screens.MyTrips.MyTripsScreen
+import com.example.thelastone.ui.screens.PreviewTripScreen
+import com.example.thelastone.ui.screens.ProfileScreen
+import com.example.thelastone.ui.screens.SavedScreen
+import com.example.thelastone.ui.screens.SearchPlacesScreen
+import com.example.thelastone.ui.screens.SearchUsersScreen
+import com.example.thelastone.ui.screens.TripChatScreen
+import com.example.thelastone.ui.screens.TripDetailScreen
+import com.example.thelastone.vm.TripFormViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +68,8 @@ fun AppScaffold() {
     val scroll = pinnedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
+        modifier =
+            Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             AppTopBar(
                 destination = currentDest,
@@ -78,12 +98,12 @@ fun AppScaffold() {
         floatingActionButton = {
             if (currentDest?.route == Root.MyTrips.route) {
                 FloatingActionButton(
-                    onClick = { nav.navigate(TripRoutes.Flow) },
-                    modifier = Modifier
-                        .navigationBarsPadding() // 不被手勢列擋住
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Create trip")
-                }
+                    onClick = {
+                        nav.navigate(TripRoutes.Flow) {
+                            launchSingleTop = true   // ← 防止重複
+                        }
+                    }
+                ) { Icon(Icons.Filled.Add, null) }
             }
         }
     ) { padding ->
@@ -118,27 +138,33 @@ fun AppScaffold() {
                 startDestination = TripRoutes.Create,
                 route = TripRoutes.Flow
             ) {
-                composable(TripRoutes.Create) {
+                composable(TripRoutes.Create) { entry ->
+                    val parent = remember(entry) { nav.getBackStackEntry(TripRoutes.Flow) }
+                    val vm: TripFormViewModel = hiltViewModel(parent) // ★ 共用 VM
                     CreateTripFormScreen(
                         padding = padding,
                         onPreview = { nav.navigate(TripRoutes.Preview) },
-                        onCancel = { nav.navigateUp() }
+                        onCancel = { nav.navigateUp() },
+                        viewModel = vm
                     )
                 }
-                composable(TripRoutes.Preview) {
+                composable(TripRoutes.Preview) { entry ->
+                    val parent = remember(entry) { nav.getBackStackEntry(TripRoutes.Flow) }
+                    val vm: TripFormViewModel = hiltViewModel(parent) // ★ 同一顆 VM
                     PreviewTripScreen(
                         padding = padding,
                         onConfirmSaved = { tripId ->
-                            // 儲存成功 → 退出整個 Flow → 進 Detail
                             nav.navigate(TripRoutes.detail(tripId)) {
-                                popUpTo(TripRoutes.Flow) { inclusive = true }
+                                popUpTo(TripRoutes.Flow) { inclusive = true } // ★ 清掉流程
                                 launchSingleTop = true
                             }
                         },
-                        onBack = { nav.navigateUp() }
+                        onBack = { nav.navigateUp() },
+                        viewModel = vm
                     )
                 }
             }
+
 
             // ===== Trip 細節頁（可深連）=====
             composable(

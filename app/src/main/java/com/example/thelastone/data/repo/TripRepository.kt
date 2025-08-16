@@ -3,6 +3,7 @@ package com.example.thelastone.data.repo
 import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
+import kotlinx.coroutines.flow.Flow
 
 interface TripRepository {
     /** 建立行程（送出表單→後端 AI 產生預覽用行程，尚未入庫） */

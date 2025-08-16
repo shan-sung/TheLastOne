@@ -9,7 +9,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,10 +31,8 @@ fun MyTripsScreen(
     openTrip: (String) -> Unit,
     vm: MyTripsViewModel = hiltViewModel()
 ) {
-    val userId = "demo-user"
     val state by vm.state.collectAsState()
 
-    LaunchedEffect(Unit) { vm.load(userId) }
     data class TabSpec(
         val title: String,
         val select: (all: List<Trip>, userId: String) -> List<Trip>,
@@ -73,23 +70,19 @@ fun MyTripsScreen(
             }
         }
 
-        // 分頁內容：依全局 state 與當前分頁規則顯示
         when (val s = state) {
             is MyTripsUiState.Loading -> {
                 LoadingState(modifier = Modifier.fillMaxWidth())
             }
-
             is MyTripsUiState.Error -> {
                 ErrorState(
                     modifier = Modifier.fillMaxWidth(),
                     title = "載入失敗",
                     message = s.message,
-                    onRetry = { vm.load(userId) }
+                    onRetry = { vm.load() }
                 )
             }
-
             is MyTripsUiState.Empty -> {
-                // 全部都空時，顯示「每個分頁自己的 Empty 文案」
                 val tab = tabs[selectedTab]
                 EmptyState(
                     modifier = Modifier.fillMaxWidth(),
@@ -97,11 +90,10 @@ fun MyTripsScreen(
                     description = tab.emptyDesc
                 )
             }
-
             is MyTripsUiState.Data -> {
                 val tab = tabs[selectedTab]
-                val tabTrips = remember(s.trips, selectedTab, userId) {
-                    tab.select(s.trips, userId)
+                val tabTrips = remember(s.trips, s.userId, selectedTab) {
+                    tab.select(s.trips, s.userId)  // ★ 傳入 userId
                 }
                 if (tabTrips.isEmpty()) {
                     EmptyState(
