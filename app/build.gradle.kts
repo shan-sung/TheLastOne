@@ -87,6 +87,7 @@ dependencies {
     implementation("com.google.maps.android:maps-compose:6.2.1")
     implementation("com.google.android.libraries.places:places:4.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1") // ← 為 await()
 
     // Firebase（BOM）
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
