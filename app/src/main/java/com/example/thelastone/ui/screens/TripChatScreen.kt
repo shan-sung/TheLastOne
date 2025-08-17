@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,8 +50,10 @@ fun TripChatScreen(
                 MessagesList(
                     modifier = Modifier.weight(1f),
                     messages = st.messages,
+                    myId = st.myId,                        // ← 這裡
                     onSelectSuggestion = viewModel::onSelectSuggestion
                 )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -88,19 +91,15 @@ fun TripChatScreen(
 private fun MessagesList(
     modifier: Modifier = Modifier,
     messages: List<Message>,
+    myId: String,                                   // ← 新增
     onSelectSuggestion: (PlaceLite) -> Unit
 ) {
     val listState = rememberLazyListState()
     val keyboardOpen by rememberKeyboardOpen()
 
-    // 第一次進入畫面 → 捲到底（用 scrollToItem: 同步、不閃爍）
     LaunchedEffect(Unit) {
-        if (messages.isNotEmpty()) {
-            listState.scrollToItem(messages.lastIndex)
-        }
+        if (messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex)
     }
-
-    // 新訊息 &/or 鍵盤狀態改變；若目前在底部就自動捲到最後一則
     LaunchedEffect(messages.size, keyboardOpen) {
         if (messages.isNotEmpty() && listState.isAtBottom()) {
             listState.animateScrollToItem(messages.lastIndex)
@@ -115,27 +114,109 @@ private fun MessagesList(
     ) {
         items(messages, key = { it.id }) { msg ->
             val isAi = msg.isAi
-            Surface(
-                tonalElevation = if (isAi) 1.dp else 0.dp,
-                shape = MaterialTheme.shapes.medium,
-                color = if (isAi) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(
-                        text = if (isAi) "Trip AI" else "You",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(msg.text)
+            val isMine = !isAi && msg.sender.id == myId
 
-                    val sug = msg.suggestions
-                    if (isAi && !sug.isNullOrEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            sug.forEach { p ->
-                                SuggestionCard(place = p, onClick = { onSelectSuggestion(p) })
+            val bubbleColor =
+                when {
+                    isAi   -> MaterialTheme.colorScheme.surfaceVariant
+                    isMine -> MaterialTheme.colorScheme.primaryContainer
+                    else   -> MaterialTheme.colorScheme.surface
+                }
+
+            when {
+                // --- Trip AI：整個框置中（內文不變，不做置中） ---
+                isAi -> {
+                    Box(Modifier.fillMaxWidth()) {
+                        Surface(
+                            tonalElevation = 1.dp,
+                            shape = MaterialTheme.shapes.medium,
+                            color = bubbleColor,
+                            modifier = Modifier
+                                .align(Alignment.Center)      // 置中
+                                .widthIn(max = 560.dp)        // 避免太寬；可依你版型調
+                                .padding(horizontal = 0.dp)   // 外邊距看需求
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Trip AI",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(msg.text)
+
+                                val sug = msg.suggestions
+                                if (!sug.isNullOrEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        sug.forEach { p ->
+                                            SuggestionCard(place = p, onClick = { onSelectSuggestion(p) })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- 我自己：整塊靠右；"You" 在泡泡外、右上 ---
+                isMine -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            // 泡泡外右上角的標籤
+                            Text(
+                                text = "You",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 2.dp, bottom = 4.dp)
+                            )
+
+                            // 泡泡本體
+                            Surface(
+                                tonalElevation = 0.dp,
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier
+                                    .wrapContentWidth()           // ← 寬度依內容
+                                    .widthIn(max = 320.dp)        // ← 最多 320dp，避免太長
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        msg.text,
+                                        textAlign = TextAlign.Start
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                // --- 其他人：維持靠左；名稱仍在泡泡內（不變） ---
+                else -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Surface(
+                            tonalElevation = 0.dp,
+                            shape = MaterialTheme.shapes.medium,
+                            color = bubbleColor,
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .widthIn(max = 320.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    text = msg.sender.name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(msg.text)
                             }
                         }
                     }
@@ -144,6 +225,7 @@ private fun MessagesList(
         }
     }
 }
+
 
 @Composable
 private fun SuggestionCard(

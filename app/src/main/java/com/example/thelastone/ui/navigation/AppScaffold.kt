@@ -1,6 +1,7 @@
 package com.example.thelastone.ui.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -45,205 +47,196 @@ import com.example.thelastone.ui.screens.form.CreateTripFormScreen
 import com.example.thelastone.ui.screens.EditProfileScreen
 import com.example.thelastone.ui.screens.ExploreScreen
 import com.example.thelastone.ui.screens.FriendsScreen
+import com.example.thelastone.ui.screens.auth.LoginScreen
 import com.example.thelastone.ui.screens.PickPlaceScreen
 import com.example.thelastone.ui.screens.myTrips.MyTripsScreen
 import com.example.thelastone.ui.screens.PreviewTripScreen
 import com.example.thelastone.ui.screens.ProfileScreen
+import com.example.thelastone.ui.screens.auth.RegisterScreen
 import com.example.thelastone.ui.screens.SavedScreen
 import com.example.thelastone.ui.screens.SearchPlacesScreen
 import com.example.thelastone.ui.screens.SearchUsersScreen
 import com.example.thelastone.ui.screens.TripChatScreen
 import com.example.thelastone.ui.screens.TripDetailScreen
+import com.example.thelastone.vm.RootViewModel
 import com.example.thelastone.vm.TripFormViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppScaffold() {
-    val nav = rememberNavController()
+    val rootVm: RootViewModel = hiltViewModel()
+    val auth by rootVm.auth.collectAsState()
+
+    if (auth == null) {
+        // 未登入：自己一顆 NavController
+        val authNav = rememberNavController()
+        AuthNavHost(nav = authNav)
+    } else {
+        // 已登入：自己一顆 NavController
+        val mainNav = rememberNavController()
+        MainScaffold(nav = mainNav)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScaffold(nav: NavHostController) {
     val backStack by nav.currentBackStackEntryAsState()
     val currentDest = backStack?.destination
 
-    // 是否為頂層分頁（控制返回鍵顯示）
     val isTopLevel = remember(currentDest) {
         TOP_LEVEL_DESTINATIONS.any { it.route == currentDest?.route }
     }
     val scroll = pinnedScrollBehavior()
 
     Scaffold(
-        modifier =
-            Modifier.nestedScroll(scroll.nestedScrollConnection),
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-                AppTopBar(
-                    destination = currentDest,
-                    isTopLevel = isTopLevel,
-                    onBack = { nav.navigateUp() },
-                    onExploreSearch = { nav.navigate(MiscRoutes.SearchPlaces) },
-                    onFriendsSearch = { nav.navigate(MiscRoutes.SearchUsers) },
-                    onEditProfile = { nav.navigate(MiscRoutes.EditProfile) },
-                    onOpenTripChat = {
-                        val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
-                        nav.navigate(TripRoutes.chat(tripId))
-                    },
-                    onOpenTripMore = { /* TODO: 開啟 BottomSheet / Menu */ },
-                    scrollBehavior = scroll
-                )
+            AppTopBar(
+                destination = currentDest,
+                isTopLevel = isTopLevel,
+                onBack = { nav.navigateUp() },
+                onExploreSearch = { nav.navigate(MiscRoutes.SearchPlaces) },
+                onFriendsSearch = { nav.navigate(MiscRoutes.SearchUsers) },
+                onEditProfile = { nav.navigate(MiscRoutes.EditProfile) },
+                onOpenTripChat = {
+                    val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
+                    nav.navigate(TripRoutes.chat(tripId))
+                },
+                onOpenTripMore = { /* TODO */ },
+                scrollBehavior = scroll
+            )
         },
         bottomBar = {
             if (currentDest?.route !in NO_BOTTOM_BAR_ROUTES) {
                 AppBottomBar(nav = nav, currentDestination = currentDest)
             }
         },
-        // ✅ FAB 放在頂層，依路由顯示
         floatingActionButtonPosition = FabPosition.End,
         contentWindowInsets = WindowInsets.safeDrawing,
         floatingActionButton = {
             if (currentDest?.route == Root.MyTrips.route) {
-                FloatingActionButton(
-                    onClick = {
-                        nav.navigate(TripRoutes.Flow) {
-                            launchSingleTop = true   // ← 防止重複
-                        }
-                    }
-                ) { Icon(Icons.Filled.Add, null) }
+                FloatingActionButton(onClick = {
+                    nav.navigate(TripRoutes.Flow) { launchSingleTop = true }
+                }) { Icon(Icons.Filled.Add, null) }
             }
         }
     ) { padding ->
-        NavHost(
-            navController = nav,
-            startDestination = Root.Explore.route
-        ) {
-            // ===== 頂層分頁 =====
-            composable(Root.Explore.route) {
-                ExploreScreen(
-                    padding = padding,
-                    openPlace = { /* 之後可導到 Place Dialog 或詳情 */ }
-                )
-            }
-            composable(Root.MyTrips.route) {
-                MyTripsScreen(
-                    padding = padding,
-                    openTrip = { id -> nav.navigate(TripRoutes.detail(id)) }
-                )
-            }
-            composable(Root.Friends.route) { FriendsScreen(padding) }
-            composable(Root.Saved.route) {
-                SavedScreen(
-                    padding = padding,
-                    openPlace = { /* 之後可導到 Trip 新增流程 */ }
-                )
-            }
-            composable(Root.Profile.route) { ProfileScreen(padding) }
-
-            // ===== Trip 巢狀流程：Create → Preview （共享 VM、一次 pop 退出）=====
-            navigation(
-                startDestination = TripRoutes.Create,
-                route = TripRoutes.Flow
-            ) {
-                composable(TripRoutes.Create) { entry ->
-                    val parent = remember(entry) { nav.getBackStackEntry(TripRoutes.Flow) }
-                    val vm: TripFormViewModel = hiltViewModel(parent) // ★ 共用 VM
-                    CreateTripFormScreen(
-                        padding = padding,
-                        onPreview = { nav.navigate(TripRoutes.Preview) },
-                        viewModel = vm
-                    )
-                }
-                composable(TripRoutes.Preview) { entry ->
-                    val parent = remember(entry) { nav.getBackStackEntry(TripRoutes.Flow) }
-                    val vm: TripFormViewModel = hiltViewModel(parent) // ★ 同一顆 VM
-                    PreviewTripScreen(
-                        padding = padding,
-                        onConfirmSaved = { tripId ->
-                            nav.navigate(TripRoutes.detail(tripId)) {
-                                popUpTo(TripRoutes.Flow) { inclusive = true } // ★ 清掉流程
-                                launchSingleTop = true
-                            }
-                        },
-                        onBack = { nav.navigateUp() },
-                        viewModel = vm
-                    )
-                }
-            }
-
-            // ===== Trip 細節頁（可深連）=====
-            composable(
-                route = TripRoutes.Detail,
-                arguments = listOf(navArgument("tripId") { type = NavType.StringType })
-            ) { entry ->
-                val tripId = entry.arguments?.getString("tripId") ?: return@composable
-
-                TripDetailScreen(
-                    padding = padding,
-                    onAddActivity = { id ->
-                        // 一般會等於 tripId，但用參數更彈性
-                        nav.navigate(TripRoutes.pickPlace(id))
-                    },
-                    onEditActivity = { id, dayIndex, activityIndex, _ ->
-                        // 導到編輯頁（自行定義你的 route）
-                        nav.navigate(TripRoutes.editActivity(id, dayIndex, activityIndex))
-                    }
-                    // onDeleteActivity 不傳 → 使用畫面內部 viewModel.removeActivity 處理
-                )
-            }
-
-
-            composable(
-                route = TripRoutes.PickPlace,
-                arguments = listOf(navArgument("tripId") { type = NavType.StringType })
-            ) { entry ->
-                val tripId = entry.arguments?.getString("tripId")!!
-                PickPlaceScreen(padding = padding, nav = nav, tripId = tripId)
-            }
-
-            composable(
-                route = TripRoutes.AddActivity,
-                arguments = listOf(
-                    navArgument("tripId")    { type = NavType.StringType },
-                    navArgument("placeJson") { type = NavType.StringType }
-                )
-            ) { entry ->
-                val tripId    = entry.arguments?.getString("tripId")!!
-                val placeJson = entry.arguments?.getString("placeJson")!!
-                AddActivityScreen(
-                    padding = padding,
-                    tripId = tripId,
-                    placeJson = placeJson,
-                    nav = nav
-                )
-            }
-
-            composable(
-                route = TripRoutes.EditActivity,
-                arguments = listOf(
-                    navArgument("tripId")       { type = NavType.StringType },
-                    navArgument("dayIndex")     { type = NavType.IntType },
-                    navArgument("activityIndex"){ type = NavType.IntType }
-                )
-            ) {
-                // 直接重用 AddActivityScreen；Edit 模式不需要 placeJson
-                AddActivityScreen(
-                    padding = padding,
-                    tripId = it.arguments!!.getString("tripId")!!,
-                    placeJson = null,   // ← 重要：編輯時不帶 placeJson
-                    nav = nav
-                )
-            }
-
-
-            composable(
-                route = TripRoutes.Chat,
-                arguments = listOf(navArgument("tripId") { type = NavType.StringType })
-            ) { TripChatScreen(padding = padding) }
-
-            // ===== 其他功能頁 =====
-            composable(MiscRoutes.SearchPlaces) { SearchPlacesScreen(padding) }
-            composable(MiscRoutes.SearchUsers)  { SearchUsersScreen(padding) }
-            composable(MiscRoutes.EditProfile)  { EditProfileScreen(padding) }
-        }
+        MainNavHost(nav = nav, padding = padding)
     }
 
-    // 非頂層頁顯示系統返回行為
     BackHandler(enabled = !isTopLevel) { nav.navigateUp() }
+}
+
+@Composable
+private fun MainNavHost(
+    nav: NavHostController,
+    padding: PaddingValues
+) {
+    NavHost(
+        navController = nav,
+        startDestination = Root.Explore.route
+    ) {
+        // ===== 頂層分頁 =====
+        composable(Root.Explore.route) {
+            ExploreScreen(padding = padding, openPlace = { /* TODO */ })
+        }
+        composable(Root.MyTrips.route) {
+            MyTripsScreen(padding = padding, openTrip = { id -> nav.navigate(TripRoutes.detail(id)) })
+        }
+        composable(Root.Friends.route) { FriendsScreen(padding) }
+        composable(Root.Saved.route)   { SavedScreen(padding = padding, openPlace = { /* TODO */ }) }
+        composable(Root.Profile.route) { ProfileScreen(padding) }
+
+        // ===== Trip 巢狀流程 =====
+        navigation(startDestination = TripRoutes.Create, route = TripRoutes.Flow) {
+            composable(TripRoutes.Create) { entry ->
+                val parent = remember(entry) { nav.getBackStackEntry(TripRoutes.Flow) }
+                val vm: TripFormViewModel = hiltViewModel(parent)
+                CreateTripFormScreen(padding = padding, onPreview = { nav.navigate(TripRoutes.Preview) }, viewModel = vm)
+            }
+            composable(TripRoutes.Preview) { entry ->
+                val parent = remember(entry) { nav.getBackStackEntry(TripRoutes.Flow) }
+                val vm: TripFormViewModel = hiltViewModel(parent)
+                PreviewTripScreen(
+                    padding = padding,
+                    onConfirmSaved = { tripId ->
+                        nav.navigate(TripRoutes.detail(tripId)) {
+                            popUpTo(TripRoutes.Flow) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onBack = { nav.navigateUp() },
+                    viewModel = vm
+                )
+            }
+        }
+
+        // ===== Trip 細節與聊天 =====
+        composable(
+            route = TripRoutes.Detail,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { entry ->
+            TripDetailScreen(
+                padding = padding,
+                onAddActivity = { id -> nav.navigate(TripRoutes.pickPlace(id)) },
+                onEditActivity = { id, dayIndex, activityIndex, _ ->
+                    nav.navigate(TripRoutes.editActivity(id, dayIndex, activityIndex))
+                }
+            )
+        }
+
+        composable(
+            route = TripRoutes.PickPlace,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { entry ->
+            val tripId = entry.arguments?.getString("tripId")!!
+            PickPlaceScreen(padding = padding, nav = nav, tripId = tripId)
+        }
+
+        composable(
+            route = TripRoutes.AddActivity,
+            arguments = listOf(
+                navArgument("tripId")    { type = NavType.StringType },
+                navArgument("placeJson") { type = NavType.StringType }
+            )
+        ) { entry ->
+            AddActivityScreen(
+                padding = padding,
+                tripId = entry.arguments!!.getString("tripId")!!,
+                placeJson = entry.arguments!!.getString("placeJson")!!,
+                nav = nav
+            )
+        }
+
+        composable(
+            route = TripRoutes.EditActivity,
+            arguments = listOf(
+                navArgument("tripId")       { type = NavType.StringType },
+                navArgument("dayIndex")     { type = NavType.IntType },
+                navArgument("activityIndex"){ type = NavType.IntType }
+            )
+        ) {
+            AddActivityScreen(
+                padding = padding,
+                tripId = it.arguments!!.getString("tripId")!!,
+                placeJson = null,   // 編輯不帶 placeJson
+                nav = nav
+            )
+        }
+
+        composable(
+            route = TripRoutes.Chat,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) {
+            TripChatScreen(padding = padding)
+        }
+
+        // ===== 其他 =====
+        composable(MiscRoutes.SearchPlaces) { SearchPlacesScreen(padding) }
+        composable(MiscRoutes.SearchUsers)  { SearchUsersScreen(padding) }
+        composable(MiscRoutes.EditProfile)  { EditProfileScreen(padding) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -4,7 +4,7 @@ import com.example.thelastone.data.fakerepo.FakeChatService
 import com.example.thelastone.data.local.MessageDao
 import com.example.thelastone.data.remote.ChatService
 import com.example.thelastone.data.repo.ChatRepository
-import com.example.thelastone.data.repo.ChatRepositoryImpl
+import com.example.thelastone.data.repo.impl.ChatRepositoryImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,17 +12,18 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 
+// di/ChatModule.kt
 @Module
 @InstallIn(SingletonComponent::class)
 object ChatModule {
 
     @Provides @Singleton
-    fun provideChatService(): ChatService = FakeChatService()
+    fun provideChatRepository(
+        impl: ChatRepositoryImpl
+    ): ChatRepository = impl
 
     @Provides @Singleton
-    fun provideChatRepository(
-        service: ChatService,
-        dao: MessageDao,
-        json: Json
-    ): ChatRepository = ChatRepositoryImpl(service, dao, json)
+    fun provideChatService(
+        fake: FakeChatService
+    ): ChatService = fake
 }

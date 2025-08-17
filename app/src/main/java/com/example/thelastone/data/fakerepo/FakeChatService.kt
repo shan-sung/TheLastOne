@@ -7,12 +7,17 @@ import com.example.thelastone.data.remote.AnalyzeResponse
 import com.example.thelastone.data.remote.ChatService
 import com.example.thelastone.data.remote.MessageDto
 import com.example.thelastone.data.remote.SendMessageBody
+import com.example.thelastone.di.SessionManager
 import kotlinx.coroutines.delay
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.random.Random
 
-class FakeChatService : ChatService {
+@Singleton
+class FakeChatService @Inject constructor(
+    private val session: SessionManager
+) : ChatService {
 
-    // 簡單記憶體訊息庫（只為 demo；正式用後端/DB）
     private val store = mutableMapOf<String, MutableList<MessageDto>>()
 
     override suspend fun getHistory(tripId: String): List<MessageDto> {
@@ -22,11 +27,12 @@ class FakeChatService : ChatService {
 
     override suspend fun sendMessage(tripId: String, body: SendMessageBody): MessageDto {
         delay(150)
+        val me = session.auth.value?.user ?: error("Require login")
         val dto = MessageDto(
             id = "srv-${System.nanoTime()}",
             tripId = tripId,
-            senderId = "me",
-            senderName = "You",
+            senderId = me.id,
+            senderName = me.name,
             text = body.text,
             timestamp = System.currentTimeMillis(),
             isAi = false,
@@ -60,4 +66,3 @@ class FakeChatService : ChatService {
         return AnalyzeResponse(aiText = ai.text, suggestions = sug)
     }
 }
-

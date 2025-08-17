@@ -6,12 +6,10 @@ import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.repo.TripRepository
-import com.example.thelastone.di.DEMO_USER
 import com.example.thelastone.di.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -21,11 +19,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class TripFormViewModel @Inject constructor(
-    private val repo: TripRepository,
-    private val session: SessionManager
+    private val repo: TripRepository
 ) : ViewModel() {
-
-    // 可供 UI 顯示的固定選項
     val styleOptions = listOf("Relax","Foodie","Culture","Nature","Nightlife","Family")
     val transportOptions = listOf("Walk","Bike","Bus","MRT","Car","Taxi")
 
@@ -119,14 +114,12 @@ class TripFormViewModel @Inject constructor(
     private val _save = MutableStateFlow<SaveUiState>(SaveUiState.Idle)
     val save: StateFlow<SaveUiState> = _save
 
-    fun generatePreview() {
+    fun generatePreview() = viewModelScope.launch {
         val f = _form.value
         val v = validate(f)
-        if (!v.ok) {
-            _preview.value = PreviewUiState.Error(v.nameError ?: v.dateError ?: v.timeError ?: "表單未通過驗證")
-            return
-        }
-        val tf = TripForm(
+        if (!v.ok) { _preview.value = PreviewUiState.Error(v.nameError ?: v.dateError ?: v.timeError ?: "表單未通過驗證"); return@launch }
+        _preview.value = PreviewUiState.Loading
+        runCatching { repo.createTrip(TripForm(
             name = f.name,
             totalBudget = f.totalBudget,
             startDate = f.startDate,
@@ -137,26 +130,17 @@ class TripFormViewModel @Inject constructor(
             useGmapsRating = f.useGmapsRating,
             styles = f.styles,
             avgAge = f.avgAge
-        )
-        viewModelScope.launch {
-            _preview.value = PreviewUiState.Loading
-            val uid = session.auth.firstOrNull()?.user?.id ?: DEMO_USER.id  // ✅ 抓使用者
-            runCatching { repo.createTrip(uid, tf) }                         // ✅ 傳入 uid
-                .onSuccess { _preview.value = PreviewUiState.Data(it) }
-                .onFailure { _preview.value = PreviewUiState.Error(it.message ?: "Preview failed") }
-        }
+        )) }
+            .onSuccess { _preview.value = PreviewUiState.Data(it) }
+            .onFailure { _preview.value = PreviewUiState.Error(it.message ?: "Preview failed") }
     }
 
-    fun confirmSave() {
-        val p = _preview.value
-        if (p !is PreviewUiState.Data) return
-        viewModelScope.launch {
-            _save.value = SaveUiState.Loading
-            val uid = session.auth.firstOrNull()?.user?.id ?: DEMO_USER.id  // ✅
-            runCatching { repo.saveTrip(uid, p.trip) }                       // ✅ 傳入 uid
-                .onSuccess { _save.value = SaveUiState.Success(it.id) }
-                .onFailure { _save.value = SaveUiState.Error(it.message ?: "Save failed") }
-        }
+    fun confirmSave() = viewModelScope.launch {
+        val p = _preview.value as? PreviewUiState.Data ?: return@launch
+        _save.value = SaveUiState.Loading
+        runCatching { repo.saveTrip(p.trip) }
+            .onSuccess { _save.value = SaveUiState.Success(it.id) }
+            .onFailure { _save.value = SaveUiState.Error(it.message ?: "Save failed") }
     }
     fun resetSaveState() { _save.value = SaveUiState.Idle }
 }

@@ -1,5 +1,6 @@
 package com.example.thelastone.data.model
 
+// UI / ViewModel 層要使用的「乾淨資料模型」
 data class Message(
     val id: String,
     val tripId: String,

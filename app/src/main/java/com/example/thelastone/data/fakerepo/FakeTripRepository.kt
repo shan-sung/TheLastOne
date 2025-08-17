@@ -10,38 +10,137 @@ import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.model.User
 import com.example.thelastone.data.repo.TripRepository
+import com.example.thelastone.di.SessionManager
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.random.Random
 
-class FakeTripRepository : TripRepository {
-
+@Singleton
+class FakeTripRepository @Inject constructor(
+    private val session: SessionManager
+) : TripRepository {
     private val trips = ConcurrentHashMap<String, Trip>()
-
-    // ✅ 單一真實來源：所有 Trip 的 Map
     private val tripsState = MutableStateFlow<Map<String, Trip>>(emptyMap())
-
-    private val dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-    private fun Trip.startLocalDate(): LocalDate = LocalDate.parse(startDate, dateFmt)
-
     init {
         seedDemoTrips()
-        emitAll()  // 第一次同步 trips -> tripsState
+        emitAll()
+    }
+    private fun emitAll() { tripsState.value = trips.toMap() }
+
+    // 建立預覽：由目前使用者當 createdBy
+    override suspend fun createTrip(form: TripForm): Trip {
+        delay(600)
+        val me = session.currentUserId
+        val days = enumerateDates(form.startDate, form.endDate).map { d ->
+            DaySchedule(d, mockActivitiesForDay(d, form.useGmapsRating, form.activityStart, form.activityEnd))
+        }
+        return Trip(
+            id = "preview-${UUID.randomUUID()}",
+            createdBy = me,
+            name = form.name,
+            totalBudget = form.totalBudget,
+            startDate = form.startDate,
+            endDate = form.endDate,
+            activityStart = form.activityStart,
+            activityEnd = form.activityEnd,
+            avgAge = form.avgAge,
+            transportPreferences = form.transportPreferences,
+            useGmapsRating = form.useGmapsRating,
+            styles = form.styles,
+            members = emptyList(),
+            days = days
+        )
     }
 
-    // ✅ 把 Map 丟進 state，一律用它推播
-    private fun emitAll() {
-        tripsState.value = trips.toMap()
+    // 儲存：也用目前使用者
+    override suspend fun saveTrip(trip: Trip): Trip {
+        delay(200)
+        val me = session.currentUserId
+        val finalId = if (trip.id.startsWith("preview-")) "trip-${UUID.randomUUID()}" else trip.id
+        val saved = trip.copy(id = finalId, createdBy = me)
+        trips[finalId] = saved
+        emitAll()
+        return saved
     }
 
+    override suspend fun getMyTrips(): List<Trip> {
+        delay(120)
+        val me = session.currentUserId
+        return trips.values
+            .filter { it.createdBy == me || it.members.any { m -> m.id == me } }
+            .sortedBy { LocalDate.parse(it.startDate) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeMyTrips(): Flow<List<Trip>> =
+        // 關鍵：跟隨帳號切換
+        session.auth.filterNotNull().flatMapLatest { auth ->
+            tripsState
+                .map { map ->
+                    map.values
+                        .filter { it.createdBy == auth.user.id || it.members.any { m -> m.id == auth.user.id } }
+                        .sortedBy { LocalDate.parse(it.startDate) }
+                }
+                .distinctUntilChanged()
+        }
+
+    override suspend fun getTripDetail(tripId: String): Trip {
+        delay(80)
+        return trips[tripId] ?: error("Trip not found: $tripId")
+    }
+
+    override fun observeTripDetail(tripId: String): Flow<Trip> =
+        tripsState
+            .map { it[tripId] ?: error("Trip not found: $tripId") }
+            .distinctUntilChanged()
+
+    override suspend fun addActivity(tripId: String, dayIndex: Int, activity: Activity) {
+        val t = trips[tripId] ?: error("Trip not found")
+        val newDays = t.days.toMutableList().apply {
+            val day = this[dayIndex]
+            this[dayIndex] = day.copy(activities = day.activities + activity)
+        }
+        trips[tripId] = t.copy(days = newDays)
+        emitAll()                // ✅ 推播（改回 emitAll）
+    }
+
+    override suspend fun updateActivity(tripId: String, dayIndex: Int, activityIndex: Int, updated: Activity) {
+        val t = trips[tripId] ?: error("Trip not found")
+        val days = t.days.toMutableList()
+        val list = days[dayIndex].activities.toMutableList()
+        list[activityIndex] = updated
+        days[dayIndex] = days[dayIndex].copy(activities = list)
+        trips[tripId] = t.copy(days = days)
+        emitAll()                // ✅ 推播
+    }
+
+    override suspend fun removeActivity(tripId: String, dayIndex: Int, activityIndex: Int) {
+        val t = trips[tripId] ?: error("Trip not found")
+        val days = t.days.toMutableList()
+        val list = days[dayIndex].activities.toMutableList()
+        list.removeAt(activityIndex)
+        days[dayIndex] = days[dayIndex].copy(activities = list)
+        trips[tripId] = t.copy(days = days)
+        emitAll()                // ✅ 推播
+    }
+
+    override suspend fun deleteTrip(tripId: String) {
+        trips.remove(tripId)
+        emitAll()                // ✅ 推播
+    }
 
     private fun seedDemoTrips() {
         val today = LocalDate.now()
@@ -96,110 +195,6 @@ class FakeTripRepository : TripRepository {
         trips[t1.id] = t1
         trips[t2.id] = t2
         trips[t3.id] = t3
-    }
-
-    // === 建立預覽 Trip：模擬後端 AI 產生 ===
-    override suspend fun createTrip(createdBy: String, form: TripForm): Trip {
-        delay(600)
-
-        val days = enumerateDates(form.startDate, form.endDate).map { date ->
-            val activities = mockActivitiesForDay(
-                date = date,
-                preferHighRating = form.useGmapsRating,
-                start = form.activityStart,
-                end = form.activityEnd
-            )
-            DaySchedule(date = date, activities = activities)
-        }
-
-        return Trip(
-            id = "preview-${UUID.randomUUID()}",
-            createdBy = createdBy,                 // ✅ 用呼叫者 id
-            name = form.name,
-            totalBudget = form.totalBudget,
-            startDate = form.startDate,
-            endDate = form.endDate,
-            activityStart = form.activityStart,    // ✅
-            activityEnd = form.activityEnd,        // ✅
-            avgAge = form.avgAge,                  // ✅
-            transportPreferences = form.transportPreferences,
-            useGmapsRating = form.useGmapsRating,
-            styles = form.styles,
-            members = emptyList(),
-            days = days
-        )
-    }
-
-    // === 確認儲存：把預覽 Trip 入庫並給正式 id ===
-    override suspend fun saveTrip(createdBy: String, trip: Trip): Trip {
-        delay(200)
-        val finalId = if (trip.id.startsWith("preview-")) "trip-${UUID.randomUUID()}" else trip.id
-        val saved = trip.copy(id = finalId, createdBy = createdBy)
-        trips[finalId] = saved
-        emitAll()                // ✅ 推播
-        return saved
-    }
-
-    override suspend fun getMyTrips(userId: String): List<Trip> {
-        delay(120)
-        return trips.values
-            .filter { t -> t.createdBy == userId || t.members.any { m -> m.id == userId } }
-            .sortedBy { it.startLocalDate() }
-    }
-
-    override fun observeMyTrips(userId: String): Flow<List<Trip>> =
-        tripsState
-            .map { map ->
-                map.values
-                    .filter { t -> t.createdBy == userId || t.members.any { m -> m.id == userId } }
-                    .sortedBy { it.startLocalDate() }
-            }
-            .distinctUntilChanged()
-
-
-    override suspend fun getTripDetail(tripId: String): Trip {
-        delay(80)
-        return trips[tripId] ?: error("Trip not found: $tripId")
-    }
-
-    override fun observeTripDetail(tripId: String): Flow<Trip> =
-        tripsState
-            .map { it[tripId] ?: error("Trip not found: $tripId") }
-            .distinctUntilChanged()
-
-    override suspend fun addActivity(tripId: String, dayIndex: Int, activity: Activity) {
-        val t = trips[tripId] ?: error("Trip not found")
-        val newDays = t.days.toMutableList().apply {
-            val day = this[dayIndex]
-            this[dayIndex] = day.copy(activities = day.activities + activity)
-        }
-        trips[tripId] = t.copy(days = newDays)
-        emitAll()                // ✅ 推播（改回 emitAll）
-    }
-
-    override suspend fun updateActivity(tripId: String, dayIndex: Int, activityIndex: Int, updated: Activity) {
-        val t = trips[tripId] ?: error("Trip not found")
-        val days = t.days.toMutableList()
-        val list = days[dayIndex].activities.toMutableList()
-        list[activityIndex] = updated
-        days[dayIndex] = days[dayIndex].copy(activities = list)
-        trips[tripId] = t.copy(days = days)
-        emitAll()                // ✅ 推播
-    }
-
-    override suspend fun removeActivity(tripId: String, dayIndex: Int, activityIndex: Int) {
-        val t = trips[tripId] ?: error("Trip not found")
-        val days = t.days.toMutableList()
-        val list = days[dayIndex].activities.toMutableList()
-        list.removeAt(activityIndex)
-        days[dayIndex] = days[dayIndex].copy(activities = list)
-        trips[tripId] = t.copy(days = days)
-        emitAll()                // ✅ 推播
-    }
-
-    override suspend fun deleteTrip(tripId: String) {
-        trips.remove(tripId)
-        emitAll()                // ✅ 推播
     }
 
     // ---------- helpers ----------

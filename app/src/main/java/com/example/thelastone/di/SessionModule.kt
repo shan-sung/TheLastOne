@@ -15,21 +15,24 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object SessionModule {
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideSessionManager(): SessionManager = SessionManager().apply { setDemoUser() }
 }
 
 @Singleton
-class SessionManager @Inject constructor() {
-
-    private val _auth = MutableStateFlow<AuthUser?>(DEMO_AUTH) // ← 預設就登入 demo
+class SessionManager @Inject constructor(
+    // 之後可注入 DataStore 來持久化 token
+) {
+    private val _auth = MutableStateFlow<AuthUser?>(null)
     val auth: StateFlow<AuthUser?> = _auth
 
-    val currentUserId: String get() = _auth.value?.user?.id ?: DEMO_USER.id
+    val isLoggedIn: Boolean get() = _auth.value != null
+    val currentUserId: String get() = _auth.value?.user?.id
+        ?: error("No user. Require login.")
 
-    fun setDemoUser() { _auth.value = DEMO_AUTH }
-    fun setAuth(authUser: AuthUser?) { _auth.value = authUser } // 之後串真登入用
+    fun setAuth(auth: AuthUser?) { _auth.value = auth }
+    fun setDemoUser() { _auth.value = DEMO_AUTH }          // 開發期
+    fun clear() { _auth.value = null }                      // 登出
 }
 
 // 一處集中定義 Demo 帳號

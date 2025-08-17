@@ -1,4 +1,4 @@
-package com.example.thelastone.data.repo
+package com.example.thelastone.data.repo.impl
 
 import com.example.thelastone.data.local.MessageDao
 import com.example.thelastone.data.local.MessageEntity
@@ -12,6 +12,8 @@ import com.example.thelastone.data.remote.AnalyzeBody
 import com.example.thelastone.data.remote.ChatService
 import com.example.thelastone.data.remote.MessageDto
 import com.example.thelastone.data.remote.SendMessageBody
+import com.example.thelastone.data.repo.ChatRepository
+import com.example.thelastone.di.SessionManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -21,12 +23,13 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// data/repo/ChatRepositoryImpl.kt
+// data/repo/ChatRepositoryImpl: Repository 的「真實實作」，整合 遠端 API (ChatService) 和 本地資料庫 (MessageDao)
 @Singleton
 class ChatRepositoryImpl @Inject constructor(
     private val service: ChatService,
     private val dao: MessageDao,
-    private val json: Json
+    private val json: Json,
+    private val session: SessionManager
 ) : ChatRepository {
 
     override fun observeMessages(tripId: String): Flow<List<Message>> =
@@ -51,8 +54,10 @@ class ChatRepositoryImpl @Inject constructor(
         dao.upsertAll(entities)
     }
 
-    override suspend fun send(tripId: String, text: String, me: User) {
+    override suspend fun send(tripId: String, text: String) {
+        val me = session.auth.value?.user ?: error("Require login")
         val localId = "local-${UUID.randomUUID()}"
+
         val localEntity = Message(
             id = localId,
             tripId = tripId,
@@ -65,7 +70,6 @@ class ChatRepositoryImpl @Inject constructor(
 
         try {
             val dto = service.sendMessage(tripId, SendMessageBody(text))
-            // 以伺服器 id 取代本地暫存 id，避免重覆
             dao.promoteLocalToServer(localId, dto.id, SendStatus.SENT)
         } catch (e: Exception) {
             dao.updateStatus(localId, SendStatus.FAILED)
