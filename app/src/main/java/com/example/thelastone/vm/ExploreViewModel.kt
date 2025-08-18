@@ -8,6 +8,7 @@ import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.repo.TripRepository
 import com.example.thelastone.data.repo.PlacesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Inject
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -17,9 +18,11 @@ data class ExploreUiState(
     val error: String? = null,
     val popularTrips: List<Trip> = emptyList(),
     val isRefreshing: Boolean = false,
-    val nearby: List<PlaceLite> = emptyList(),      // 👈 新增
-    val nearbyError: String? = null
+    val nearby: List<PlaceLite> = emptyList(),
+    val nearbyError: String? = null,
+    val nearbyLoading: Boolean = false            // ✅ 新增
 )
+
 
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
@@ -32,6 +35,7 @@ class ExploreViewModel @Inject constructor(
     private fun popularTripsFlow(): Flow<List<Trip>> =
         repo.observeMyTrips().map { list -> list.sortedBy { it.startDate } }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val popularResource: Flow<Result<List<Trip>>> =
         refresh.onStart { emit(Unit) }
             .flatMapLatest {
@@ -71,21 +75,30 @@ class ExploreViewModel @Inject constructor(
     fun retry() = refresh()
 
     // ---- Nearby API ----
-    fun loadNearby(lat: Double, lng: Double, radiusMeters: Double = 3000.0, onlyOpen: Boolean = false) {
+    fun loadNearby(
+        lat: Double, lng: Double,
+        radiusMeters: Double = 3000.0,
+        onlyOpen: Boolean = false
+    ) {
         viewModelScope.launch {
-            _state.update { it.copy(nearbyError = null) }
+            _state.update { it.copy(nearbyLoading = true, nearbyError = null) }   // ✅ 開始載入
             runCatching {
                 placesRepo.searchNearby(
                     lat = lat, lng = lng, radiusMeters = radiusMeters,
                     includedTypes = listOf("tourist_attraction"),
-                    rankPreference = "POPULARITY",  // 或 "DISTANCE"
+                    rankPreference = "POPULARITY",
                     openNow = if (onlyOpen) true else null,
                     maxResultCount = 20
                 )
             }.onSuccess { list ->
-                _state.update { it.copy(nearby = list) }
+                _state.update { it.copy(nearby = list, nearbyLoading = false) }   // ✅ 成功關閉 loading
             }.onFailure { e ->
-                _state.update { it.copy(nearbyError = e.message ?: "附近景點載入失敗") }
+                _state.update {
+                    it.copy(
+                        nearbyError = e.message ?: "附近景點載入失敗",
+                        nearbyLoading = false                                       // ✅ 失敗也關閉
+                    )
+                }
             }
         }
     }
