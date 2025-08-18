@@ -93,7 +93,7 @@ fun MainScaffold(nav: NavHostController) {
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            if (currentDest?.route != MiscRoutes.SearchPlaces) {
+            if (currentDest?.route !in setOf( MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick )) {
                 AppTopBar(
                     destination = currentDest,
                     isTopLevel = isTopLevel,
@@ -359,6 +359,7 @@ private val NO_BOTTOM_BAR_ROUTES = setOf(
     TripRoutes.Detail,
     TripRoutes.Chat,
     MiscRoutes.SearchPlaces,
+    MiscRoutes.SearchPlacesPick,
     MiscRoutes.SearchUsers,
     MiscRoutes.EditProfile,
     TripRoutes.PickPlace,

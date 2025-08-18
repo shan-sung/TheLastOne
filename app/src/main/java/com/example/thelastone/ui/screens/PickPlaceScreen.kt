@@ -1,6 +1,7 @@
 package com.example.thelastone.ui.screens
 
 // ⚠️ 依你的檔案路徑調整 import
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -56,17 +57,17 @@ fun PickPlaceScreen(
         OutlinedTextField(
             value = "",
             onValueChange = {},
+            readOnly = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            readOnly = true,
+                .padding(16.dp)
+                .clickable { onSearchClick() },      // ← 讓整塊可點
             placeholder = { Text("搜尋景點、地址…") },
             trailingIcon = {
-                IconButton(onClick = onSearchClick) {
-                    Icon(Icons.Filled.Search, contentDescription = null)
-                }
+                IconButton(onClick = onSearchClick) { Icon(Icons.Filled.Search, null) }
             }
         )
+
 
         TabRow(selectedTabIndex = selected) {
             tabs.forEachIndexed { i, t ->
