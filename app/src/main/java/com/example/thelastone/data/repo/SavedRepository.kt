@@ -1,10 +1,15 @@
 package com.example.thelastone.data.repo
 
 import com.example.thelastone.data.model.Place
+import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.SavedPlace
+import kotlinx.coroutines.flow.Flow
 
 interface SavedRepository {
-    suspend fun getSavedPlaces(userId: String): List<SavedPlace>
-    suspend fun addSavedPlace(userId: String, place: Place)
-    suspend fun removeSavedPlace(userId: String, placeId: String)
+    fun observeIds(): Flow<Set<String>>
+    fun observeAll(): Flow<List<SavedPlace>>
+
+    suspend fun save(place: PlaceLite)
+    suspend fun unsave(placeId: String)
+    suspend fun toggle(place: PlaceLite)
 }

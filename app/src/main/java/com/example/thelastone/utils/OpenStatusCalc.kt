@@ -1,8 +1,10 @@
 package com.example.thelastone.utils
 
+// utils/OpenStatusCalc.kt
 import com.example.thelastone.data.remote.ApiOpeningHours
 import com.example.thelastone.data.remote.ApiPeriod
 import java.time.format.DateTimeFormatter
+
 
 data class OpenStatus(val openNow: Boolean, val text: String)
 

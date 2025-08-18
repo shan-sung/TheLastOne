@@ -50,6 +50,9 @@ object TripRoutes {
 // 其他單頁功能
 object MiscRoutes {
     const val SearchPlaces = "search/places"
+    const val SearchPlacesPick = "search/places/pick/{tripId}"
+    fun searchPlacesPick(tripId: String) = "search/places/pick/$tripId"
+
     const val SearchUsers  = "search/users"
     const val EditProfile  = "profile/edit"
 }

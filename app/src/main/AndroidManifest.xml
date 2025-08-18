@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- 裝置沒有 GPS 也能安裝；避免 Play Console 警告 -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <application
         android:name=".MyApp"

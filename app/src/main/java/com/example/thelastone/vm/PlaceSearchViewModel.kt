@@ -35,7 +35,7 @@ class PlaceSearchViewModel @Inject constructor(
     private val manualTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     // 若需要地點偏好，可改用 StateFlow<LocationBias?> 注入
-    private val locationBias = MutableStateFlow<Triple<Double?, Double?, Double?>?>(null)
+    private val locationBias = MutableStateFlow<Triple<Double?, Double?, Int?>?>(null)
 
     // 對外只暴露 StateFlow
     private val _state = MutableStateFlow(UiState())
@@ -46,7 +46,7 @@ class PlaceSearchViewModel @Inject constructor(
         queryFlow.value = q
     }
 
-    fun setLocationBias(lat: Double?, lng: Double?, radiusM: Double?) {
+    fun setLocationBias(lat: Double?, lng: Double?, radiusM: Int?) {
         locationBias.value = Triple(lat, lng, radiusM)
     }
 

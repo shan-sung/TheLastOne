@@ -58,6 +58,7 @@ import com.example.thelastone.ui.screens.SearchPlacesScreen
 import com.example.thelastone.ui.screens.SearchUsersScreen
 import com.example.thelastone.ui.screens.TripChatScreen
 import com.example.thelastone.ui.screens.TripDetailScreen
+import com.example.thelastone.utils.encodePlaceArg
 import com.example.thelastone.vm.RootViewModel
 import com.example.thelastone.vm.TripFormViewModel
 
@@ -192,12 +193,40 @@ private fun MainNavHost(
             )
         }
 
+        // MainNavHost() 裡 TripRoutes.PickPlace 的 composable 區塊改成：
         composable(
             route = TripRoutes.PickPlace,
             arguments = listOf(navArgument("tripId") { type = NavType.StringType })
         ) { entry ->
             val tripId = entry.arguments?.getString("tripId")!!
-            PickPlaceScreen(padding = padding, nav = nav, tripId = tripId)
+
+            PickPlaceScreen(
+                padding = padding,
+                onSearchClick = { nav.navigate(MiscRoutes.searchPlacesPick(tripId)) },
+                onPick = { place ->
+                    // 將 PlaceLite → JSON → Uri encode
+                    val placeJson = android.net.Uri.encode(
+                        encodePlaceArg(place)
+                    )
+                    nav.navigate(TripRoutes.addActivity(tripId, placeJson))
+                }
+            )
+        }
+
+        // 挑地點（從 Trip → PickPlace 進來）
+        composable(
+            route = MiscRoutes.SearchPlacesPick,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { entry ->
+            val tripId = entry.arguments!!.getString("tripId")!!
+            SearchPlacesScreen(
+                onBack = { nav.navigateUp() },
+                isPickingForTrip = true,
+                onPick = { place ->
+                    val placeJson = android.net.Uri.encode(encodePlaceArg(place))
+                    nav.navigate(TripRoutes.addActivity(tripId, placeJson))
+                }
+            )
         }
 
         composable(
@@ -239,7 +268,12 @@ private fun MainNavHost(
         }
 
         // ===== 其他 =====
-        composable(MiscRoutes.SearchPlaces) { SearchPlacesScreen(onBack = { nav.navigateUp() }) }
+        composable(MiscRoutes.SearchPlaces) {
+            SearchPlacesScreen(
+                onBack = { nav.navigateUp() },
+                isPickingForTrip = false
+            )
+        }
         composable(MiscRoutes.SearchUsers)  { SearchUsersScreen(padding) }
         composable(MiscRoutes.EditProfile)  { EditProfileScreen(padding) }
     }

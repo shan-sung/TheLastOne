@@ -1,4 +1,4 @@
-package com.example.thelastone.data.fakerepo
+package com.example.thelastone.data.repo.impl.fake
 
 import com.example.thelastone.data.model.AuthUser
 import com.example.thelastone.data.model.User

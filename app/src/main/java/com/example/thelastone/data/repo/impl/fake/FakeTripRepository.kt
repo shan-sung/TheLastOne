@@ -1,4 +1,4 @@
-package com.example.thelastone.data.fakerepo
+package com.example.thelastone.data.repo.impl.fake
 
 // ====== FakeTripRepository（修正版，使用 java.time） ======
 

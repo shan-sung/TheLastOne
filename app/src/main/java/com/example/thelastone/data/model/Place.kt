@@ -15,6 +15,26 @@ data class Place(
     val miniMapUrl: String? = null
 )
 
+// data/model/Place.kt
+data class PlaceDetails(
+    val placeId: String,
+    val name: String,
+    val address: String?,
+    val lat: Double,
+    val lng: Double,
+    val rating: Double?,
+    val userRatingsTotal: Int?,
+    val photoUrl: String?,
+    val types: List<String> = emptyList(),
+    val websiteUri: String? = null,
+    val nationalPhoneNumber: String? = null,
+    val priceLevel: Int? = null,
+    val openingHours: List<String> = emptyList(), // weekdayDescriptions
+    val openNow: Boolean? = null,
+    val openStatusText: String? = null
+)
+
+
 @Serializable
 data class PlaceLite(
     val placeId: String,

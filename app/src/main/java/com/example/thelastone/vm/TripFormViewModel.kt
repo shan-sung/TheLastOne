@@ -6,7 +6,6 @@ import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.repo.TripRepository
-import com.example.thelastone.di.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

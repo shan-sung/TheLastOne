@@ -1,6 +1,7 @@
 package com.example.thelastone.data.repo.impl
 
 import com.example.thelastone.BuildConfig
+import com.example.thelastone.data.model.PlaceDetails
 import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.remote.ApiPlace
 import com.example.thelastone.data.remote.Circle
@@ -11,23 +12,27 @@ import com.example.thelastone.data.remote.PlacesApi
 import com.example.thelastone.data.remote.SearchNearbyBody
 import com.example.thelastone.data.remote.SearchTextBody
 import com.example.thelastone.data.repo.PlacesRepository
+import com.example.thelastone.data.repo.RankPreference
 import com.example.thelastone.utils.buildOpenStatus
 import com.example.thelastone.utils.stripCountryTaiwanPrefix
 import com.example.thelastone.utils.stripPostalCodeIfAny
 import javax.inject.Inject
 
+// data/repo/impl/PlacesRepositoryImpl.kt
 class PlacesRepositoryImpl @Inject constructor(
     private val api: PlacesApi
 ) : PlacesRepository {
 
+    override fun buildPhotoUrl(photoName: String, maxWidth: Int): String =
+        "https://places.googleapis.com/v1/$photoName/media?maxWidthPx=$maxWidth&key=${BuildConfig.MAPS_API_KEY}"
+
     override suspend fun searchText(
         query: String,
-        lat: Double?, lng: Double?, radiusMeters: Double?, openNow: Boolean?
+        lat: Double?, lng: Double?, radiusMeters: Int?, openNow: Boolean?
     ): List<PlaceLite> {
-        val bias =
-            if (lat != null && lng != null && radiusMeters != null)
-                LocationBias(circle = Circle(center = LatLng(lat, lng), radius = radiusMeters))
-            else null
+        val bias = if (lat != null && lng != null && radiusMeters != null)
+            LocationBias(circle = Circle(center = LatLng(lat, lng), radius = radiusMeters.toDouble()))
+        else null
 
         val resp = api.searchText(
             SearchTextBody(
@@ -38,28 +43,27 @@ class PlacesRepositoryImpl @Inject constructor(
                 regionCode = "TW"
             )
         )
-
         return mapApiPlacesToLite(resp.places)
     }
 
     override suspend fun searchNearby(
         lat: Double,
         lng: Double,
-        radiusMeters: Double,
+        radiusMeters: Int,
         includedTypes: List<String>,
-        rankPreference: String,
+        rankPreference: RankPreference,
         openNow: Boolean?,
         maxResultCount: Int
     ): List<PlaceLite> {
         val resp = api.searchNearby(
             SearchNearbyBody(
                 locationRestriction = LocationRestriction(
-                    circle = Circle(center = LatLng(lat, lng), radius = radiusMeters)
+                    circle = Circle(center = LatLng(lat, lng), radius = radiusMeters.toDouble())
                 ),
                 includedTypes = includedTypes,
                 maxResultCount = maxResultCount.coerceIn(1, 20),
                 openNow = openNow,
-                rankPreference = rankPreference,   // "POPULARITY" 或 "DISTANCE"
+                rankPreference = rankPreference.name,   // enum → API 字串
                 languageCode = "zh-TW",
                 regionCode = "TW"
             )
@@ -67,7 +71,36 @@ class PlacesRepositoryImpl @Inject constructor(
         return mapApiPlacesToLite(resp.places)
     }
 
-    // 共用轉換
+    override suspend fun fetchDetails(placeId: String): PlaceDetails {
+        val apiPlace = api.fetchDetails(placeId = "places/$placeId")  // ← API 要帶前綴
+        val id = apiPlace.id?.substringAfter("places/") ?: placeId
+        val photoName = apiPlace.photos?.firstOrNull()?.name
+        val photoUrl = photoName?.let { buildPhotoUrl(it, 800) }
+        val status = buildOpenStatus(
+            current = apiPlace.currentOpeningHours,
+            regular = apiPlace.regularOpeningHours,
+            utcOffsetMinutes = apiPlace.utcOffsetMinutes ?: 0
+        )
+
+        return PlaceDetails(
+            placeId = id,
+            name = apiPlace.displayName?.text ?: "未命名地點",
+            address = apiPlace.formattedAddress?.let(::stripPostalCodeIfAny)?.let(::stripCountryTaiwanPrefix),
+            lat = apiPlace.location?.latitude ?: 0.0,
+            lng = apiPlace.location?.longitude ?: 0.0,
+            rating = apiPlace.rating,
+            userRatingsTotal = apiPlace.userRatingCount,
+            photoUrl = photoUrl,
+            types = emptyList(), // 你可在 ApiPlace 加上 types 後帶入
+            websiteUri = apiPlace.websiteUri,
+            nationalPhoneNumber = apiPlace.nationalPhoneNumber,
+            priceLevel = apiPlace.priceLevel,
+            openingHours = apiPlace.currentOpeningHours?.weekdayDescriptions.orEmpty(),
+            openNow = status?.openNow ?: apiPlace.currentOpeningHours?.openNow,
+            openStatusText = status?.text
+        )
+    }
+
     private fun mapApiPlacesToLite(list: List<ApiPlace>?): List<PlaceLite> =
         list.orEmpty().mapNotNull { p ->
             val id = p.id?.substringAfter("places/") ?: return@mapNotNull null
@@ -75,14 +108,11 @@ class PlacesRepositoryImpl @Inject constructor(
             val la = p.location?.latitude ?: 0.0
             val lo = p.location?.longitude ?: 0.0
 
-            val photoName = p.photos?.firstOrNull()?.name
-            val photoUrl = photoName?.let {
-                "https://places.googleapis.com/v1/$it/media?maxWidthPx=400&key=${BuildConfig.MAPS_API_KEY}"
-            }
+            val photoUrl = p.photos?.firstOrNull()?.name?.let { buildPhotoUrl(it, 400) }
 
             val addr = p.formattedAddress
-                ?.let { stripPostalCodeIfAny(it) }
-                ?.let { stripCountryTaiwanPrefix(it) }
+                ?.let(::stripPostalCodeIfAny)
+                ?.let(::stripCountryTaiwanPrefix)
 
             val status = buildOpenStatus(
                 current = p.currentOpeningHours,
@@ -104,5 +134,4 @@ class PlacesRepositoryImpl @Inject constructor(
                 openStatusText = status?.text
             )
         }
-
 }

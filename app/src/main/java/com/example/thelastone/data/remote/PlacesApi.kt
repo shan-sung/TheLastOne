@@ -2,8 +2,18 @@ package com.example.thelastone.data.remote
 
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.POST
+import retrofit2.http.Path
+
+private const val PLACES_DETAILS_FIELD_MASK =
+    "id,displayName,formattedAddress,shortFormattedAddress,location," +
+            "rating,userRatingCount,photos.name,businessStatus,types," +
+            "websiteUri,nationalPhoneNumber,priceLevel,utcOffsetMinutes," +
+            "currentOpeningHours.openNow,currentOpeningHours.periods,currentOpeningHours.weekdayDescriptions," +
+            "regularOpeningHours.periods"
 
 private const val PLACES_LIST_FIELD_MASK =
     "places.id,places.displayName,places.formattedAddress,places.location," +
@@ -26,6 +36,12 @@ interface PlacesApi {
     @POST("v1/places:searchNearby")
     @Headers("X-Goog-FieldMask: $PLACES_NEARBY_FIELD_MASK")
     suspend fun searchNearby(@Body body: SearchNearbyBody): SearchNearbyResponse
+
+    @GET("v1/places/{placeId}")
+    suspend fun fetchDetails(
+        @Path("placeId") placeId: String,
+        @Header("X-Goog-FieldMask") fieldMask: String = PLACES_DETAILS_FIELD_MASK
+    ): ApiPlace
 }
 
 /** ---- DTO ---- */
@@ -54,10 +70,17 @@ data class ApiPlace(
     val userRatingCount: Int? = null,
     val photos: List<ApiPhoto>? = null,
     val businessStatus: String? = null,
-    val utcOffsetMinutes: Int? = null,          // ✅ 要有
+    val utcOffsetMinutes: Int? = null,
     val currentOpeningHours: ApiOpeningHours? = null,
-    val regularOpeningHours: ApiOpeningHours? = null // ✅ 要有
+    val regularOpeningHours: ApiOpeningHours? = null,
+
+    // ⬇️ 新增這幾個讓 PlacesRepositoryImpl 能存取
+    val websiteUri: String? = null,
+    val nationalPhoneNumber: String? = null,
+    val priceLevel: Int? = null,
+    val types: List<String>? = null
 )
+
 @Serializable data class ApiPhoto(val name: String?)
 @Serializable data class TextVal(val text: String?)
 

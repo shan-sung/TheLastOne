@@ -42,15 +42,21 @@ import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.PlaceAction
 import com.example.thelastone.ui.state.EmptyState
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.vm.PlaceSearchViewModel
+import com.example.thelastone.vm.SavedViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchPlacesScreen(
     viewModel: PlaceSearchViewModel = hiltViewModel(),
-    onPlaceSelected: (PlaceLite) -> Unit = {},
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    // ★ 新增：是否用於挑選行程（Pick Place）
+    isPickingForTrip: Boolean = false,
+    // ★ 新增：挑選完成回調（只在 isPickingForTrip = true 時會被呼叫）
+    onPick: (PlaceLite) -> Unit = {}
 ) {
     val s by viewModel.state.collectAsState()
+    val savedVm: SavedViewModel = hiltViewModel()
+    val savedUi by savedVm.state.collectAsState()
     var active by rememberSaveable { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -163,13 +169,32 @@ fun SearchPlacesScreen(
     }
 
     if (showDialog) {
+        val p = selected
+        val mode = if (isPickingForTrip) {
+            PlaceActionMode.ADD_TO_ITINERARY
+        } else {
+            if (p != null && savedUi.savedIds.contains(p.placeId))
+                PlaceActionMode.REMOVE_FROM_FAVORITE
+            else
+                PlaceActionMode.ADD_TO_FAVORITE
+        }
+
         PlaceDetailDialog(
-            place = selected,
-            mode = PlaceActionMode.ADD_TO_FAVORITE,
+            place = p,
+            mode = mode,
             onDismiss = { showDialog = false },
-            onAddToFavorite = {
+            onAddToItinerary = {
+                // 只有 pick 模式會進來
+                p?.let(onPick)
                 showDialog = false
-                selected?.let(onPlaceSelected)
+            },
+            onAddToFavorite = {
+                p?.let { savedVm.toggle(it) }
+                showDialog = false
+            },
+            onRemoveFromFavorite = {
+                p?.let { savedVm.toggle(it) }
+                showDialog = false
             }
         )
     }

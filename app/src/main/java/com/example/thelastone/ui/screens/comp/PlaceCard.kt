@@ -5,14 +5,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,21 +35,22 @@ import com.example.thelastone.data.model.PlaceLite
 fun PlaceCard(
     place: PlaceLite,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSaved: Boolean = false,
+    onToggleSave: (() -> Unit)? = null
 ) {
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        ),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 封面照
             if (!place.photoUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = place.photoUrl,
@@ -67,7 +72,6 @@ fun PlaceCard(
             Spacer(Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                // 名稱
                 Text(
                     text = place.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -75,7 +79,6 @@ fun PlaceCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // 地址
                 place.address?.let {
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -87,12 +90,11 @@ fun PlaceCard(
                     )
                 }
 
-                // 評分
                 if (place.rating != null && place.userRatingsTotal != null) {
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Star,
+                            imageVector = Icons.Filled.Star,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
@@ -104,6 +106,23 @@ fun PlaceCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            }
+
+            // 尾端愛心（不會覆蓋文字）
+            if (onToggleSave != null) {
+                IconButton(
+                    onClick = onToggleSave,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(40.dp) // 提升點擊範圍
+                ) {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = null,
+                        tint = if (isSaved) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
