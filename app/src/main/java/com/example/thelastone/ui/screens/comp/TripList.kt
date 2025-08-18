@@ -1,4 +1,4 @@
-package com.example.thelastone.ui.screens.myTrips.comp
+package com.example.thelastone.ui.screens.comp
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,7 +48,7 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
 }
 
 @Composable
-private fun TripCard(
+fun TripCard(
     trip: Trip,
     onClick: () -> Unit,
     imageUrl: String? = null,   // 由呼叫端提供封面圖（可放第一天景點照等）

@@ -1,7 +1,8 @@
-package com.example.thelastone.ui.screens.placedetaildialog
+package com.example.thelastone.ui.screens.comp.placedetaildialog
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,15 +20,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.thelastone.data.model.PlaceLite
-import com.example.thelastone.ui.screens.placedetaildialog.comp.ActionButtonsRow
-import com.example.thelastone.ui.screens.placedetaildialog.comp.ImgSection
-import com.example.thelastone.ui.screens.placedetaildialog.comp.MapSection
-import com.example.thelastone.ui.screens.placedetaildialog.comp.OpeningHoursSection
-import com.example.thelastone.ui.screens.placedetaildialog.comp.PlaceActionMode
-import com.example.thelastone.ui.screens.placedetaildialog.comp.RatingSection
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.ActionButtonsRow
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.ImgSection
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.MapSection
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.OpeningHoursSection
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.PlaceActionMode
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.RatingSection
+
+@Composable
+private fun ColumnScope.Section(
+    visible: Boolean,
+    topSpacing: Dp = 12.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    if (!visible) return
+    Spacer(Modifier.height(topSpacing))
+    content()
+}
+
 @Composable
 fun PlaceDetailDialog(
     place: PlaceLite?,                       // ← 改用你現有的 PlaceLite
@@ -76,33 +90,50 @@ fun PlaceDetailDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 76.dp) // 讓底部按鈕列不被內容遮到
+                        .padding(bottom = 76.dp) // 給底部按鈕列空間
                         .verticalScroll(rememberScrollState())
                 ) {
-                    // 圖片區（沿用原本 ImgSection 的位置）
-                    place.photoUrl?.let { ImgSection(url = it) }
+                    // 1) 圖片：沒有就完全不佔位
+                    place.photoUrl?.let { url ->
+                        ImgSection(url = url)
+                    }
 
                     Column(modifier = Modifier.padding(20.dp)) {
+                        // 2) 名稱（一定有）
                         Text(place.name, style = MaterialTheme.typography.titleLarge)
-                        Spacer(Modifier.height(4.dp))
-                        Text(place.address.orEmpty(), style = MaterialTheme.typography.bodyLarge)
-                        Spacer(Modifier.height(4.dp))
 
-                        if (place.openingHours.isNotEmpty() || place.openStatusText != null) {
+                        // 3) 地址：只有有值才顯示，也只在顯示時加間距
+                        Section(visible = !place.address.isNullOrBlank(), topSpacing = 4.dp) {
+                            Text(place.address.orEmpty(), style = MaterialTheme.typography.bodyLarge)
+                        }
+
+                        // 4) 營業資訊：兩者有其一才顯示
+                        Section(
+                            visible = place.openingHours.isNotEmpty() || place.openStatusText != null,
+                            topSpacing = 8.dp
+                        ) {
                             OpeningHoursSection(
                                 hours = place.openingHours,
                                 statusText = place.openStatusText
                             )
                         }
 
-                        place.rating?.let { rating ->
-                            RatingSection(rating = rating, totalReviews = place.userRatingsTotal ?: 0)
+                        // 5) 評分：有 rating 才顯示
+                        Section(visible = place.rating != null, topSpacing = 8.dp) {
+                            RatingSection(
+                                rating = place.rating ?: 0.0,
+                                totalReviews = place.userRatingsTotal ?: 0
+                            )
                         }
-                        MapSection(lat = place.lat, lng = place.lng)
+
+                        // 6) 地圖：照舊（通常會想 always 顯示）
+                        Section(visible = true, topSpacing = 12.dp) {
+                            MapSection(lat = place.lat, lng = place.lng)
+                        }
                     }
                 }
 
-                // 底部固定操作列（沿用 ActionButtonsRow 的位置與行為）
+                // 底部固定按鈕列
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

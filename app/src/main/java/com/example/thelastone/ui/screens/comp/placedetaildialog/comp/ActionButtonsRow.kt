@@ -1,4 +1,4 @@
-package com.example.thelastone.ui.screens.placedetaildialog.comp
+package com.example.thelastone.ui.screens.comp.placedetaildialog.comp
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row

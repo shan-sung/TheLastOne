@@ -16,7 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.thelastone.ui.screens.myTrips.comp.TripList
+import com.example.thelastone.ui.screens.comp.TripList
 import com.example.thelastone.ui.state.EmptyState
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState

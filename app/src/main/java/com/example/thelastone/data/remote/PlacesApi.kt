@@ -2,28 +2,31 @@ package com.example.thelastone.data.remote
 
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
-import retrofit2.http.Header
+import retrofit2.http.Headers
 import retrofit2.http.POST
+
+private const val PLACES_LIST_FIELD_MASK =
+    "places.id,places.displayName,places.formattedAddress,places.location," +
+            "places.rating,places.userRatingCount,places.photos.name,places.businessStatus," +
+            "places.utcOffsetMinutes,places.currentOpeningHours.openNow,places.currentOpeningHours.periods," +
+            "places.currentOpeningHours.weekdayDescriptions,places.regularOpeningHours.periods"
+
+private const val PLACES_NEARBY_FIELD_MASK =
+    "places.id,places.displayName,places.formattedAddress,places.location," +
+            "places.rating,places.userRatingCount,places.photos.name,places.businessStatus," +
+            "places.utcOffsetMinutes,places.currentOpeningHours.openNow,places.currentOpeningHours.periods," +
+            "places.currentOpeningHours.weekdayDescriptions,places.regularOpeningHours.periods"
+
 
 interface PlacesApi {
     @POST("v1/places:searchText")
-    suspend fun searchText(
-        @Body body: SearchTextBody,
-        @Header("X-Goog-Api-Key") apiKey: String,
-        @Header("X-Goog-FieldMask") fieldMask: String =
-            listOf(
-                "places.id","places.displayName","places.formattedAddress","places.location",
-                "places.rating","places.userRatingCount","places.photos.name",
-                "places.businessStatus","places.utcOffsetMinutes",
-                "places.currentOpeningHours.openNow",
-                "places.currentOpeningHours.periods",
-                "places.currentOpeningHours.weekdayDescriptions",
-                "places.regularOpeningHours.periods"
-            ).joinToString(",")
+    @Headers("X-Goog-FieldMask: $PLACES_LIST_FIELD_MASK")
+    suspend fun searchText(@Body body: SearchTextBody): SearchTextResponse
 
-    ): SearchTextResponse
+    @POST("v1/places:searchNearby")
+    @Headers("X-Goog-FieldMask: $PLACES_NEARBY_FIELD_MASK")
+    suspend fun searchNearby(@Body body: SearchNearbyBody): SearchNearbyResponse
 }
-
 
 /** ---- DTO ---- */
 @Serializable
@@ -75,4 +78,21 @@ data class ApiPoint(
     val day: Int? = null,   // ✅ 由 String? 改為 Int?
     val hour: Int? = null,
     val minute: Int? = null
+)
+
+@Serializable
+data class SearchNearbyBody(
+    val locationRestriction: LocationRestriction,         // 必填: 範圍
+    val includedTypes: List<String>? = null,              // 最多 5 個 primary type
+    val maxResultCount: Int? = 20,                        // 1..20
+    val openNow: Boolean? = null,                         // 過濾營業中
+    val rankPreference: String? = null,                   // "POPULARITY" | "DISTANCE"
+    val languageCode: String? = null,
+    val regionCode: String? = null
+)
+
+@Serializable data class LocationRestriction(val circle: Circle)
+@Serializable
+data class SearchNearbyResponse(
+    val places: List<ApiPlace>?   // ✅ 這裡要是 ApiPlace（remote DTO）
 )

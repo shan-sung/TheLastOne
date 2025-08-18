@@ -141,7 +141,11 @@ private fun MainNavHost(
     ) {
         // ===== 頂層分頁 =====
         composable(Root.Explore.route) {
-            ExploreScreen(padding = padding, openPlace = { /* TODO */ })
+            ExploreScreen(
+                padding = padding,
+                openPlace = { placeId -> /* 之後做附近景點用 */ },
+                openTrip = { tripId -> nav.navigate(TripRoutes.detail(tripId)) }
+            )
         }
         composable(Root.MyTrips.route) {
             MyTripsScreen(padding = padding, openTrip = { id -> nav.navigate(TripRoutes.detail(id)) })

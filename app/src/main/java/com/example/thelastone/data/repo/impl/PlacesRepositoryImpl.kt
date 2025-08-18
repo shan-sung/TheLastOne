@@ -2,10 +2,13 @@ package com.example.thelastone.data.repo.impl
 
 import com.example.thelastone.BuildConfig
 import com.example.thelastone.data.model.PlaceLite
+import com.example.thelastone.data.remote.ApiPlace
 import com.example.thelastone.data.remote.Circle
 import com.example.thelastone.data.remote.LatLng
 import com.example.thelastone.data.remote.LocationBias
+import com.example.thelastone.data.remote.LocationRestriction
 import com.example.thelastone.data.remote.PlacesApi
+import com.example.thelastone.data.remote.SearchNearbyBody
 import com.example.thelastone.data.remote.SearchTextBody
 import com.example.thelastone.data.repo.PlacesRepository
 import com.example.thelastone.utils.buildOpenStatus
@@ -27,17 +30,46 @@ class PlacesRepositoryImpl @Inject constructor(
             else null
 
         val resp = api.searchText(
-            body = SearchTextBody(
+            SearchTextBody(
                 textQuery = query,
                 locationBias = bias,
                 openNow = openNow,
                 languageCode = "zh-TW",
                 regionCode = "TW"
-            ),
-            apiKey = BuildConfig.MAPS_API_KEY
+            )
         )
 
-        return resp.places.orEmpty().mapNotNull { p ->
+        return mapApiPlacesToLite(resp.places)
+    }
+
+    override suspend fun searchNearby(
+        lat: Double,
+        lng: Double,
+        radiusMeters: Double,
+        includedTypes: List<String>,
+        rankPreference: String,
+        openNow: Boolean?,
+        maxResultCount: Int
+    ): List<PlaceLite> {
+        val resp = api.searchNearby(
+            SearchNearbyBody(
+                locationRestriction = LocationRestriction(
+                    circle = Circle(center = LatLng(lat, lng), radius = radiusMeters)
+                ),
+                includedTypes = includedTypes,
+                maxResultCount = maxResultCount.coerceIn(1, 20),
+                openNow = openNow,
+                rankPreference = rankPreference,   // "POPULARITY" 或 "DISTANCE"
+                languageCode = "zh-TW",
+                regionCode = "TW"
+            )
+        )
+        return mapApiPlacesToLite(resp.places)
+    }
+
+    // 共用轉換
+    private fun mapApiPlacesToLite(list: List<ApiPlace>?): List<PlaceLite> =
+        list.orEmpty().mapNotNull { p ->
             val id = p.id?.substringAfter("places/") ?: return@mapNotNull null
             val name = p.displayName?.text ?: "未命名地點"
             val la = p.location?.latitude ?: 0.0
@@ -52,8 +84,6 @@ class PlacesRepositoryImpl @Inject constructor(
                 ?.let { stripPostalCodeIfAny(it) }
                 ?.let { stripCountryTaiwanPrefix(it) }
 
-
-            // ✅ 在這裡（p 已存在）計算營業狀態
             val status = buildOpenStatus(
                 current = p.currentOpeningHours,
                 regular = p.regularOpeningHours,
@@ -74,5 +104,5 @@ class PlacesRepositoryImpl @Inject constructor(
                 openStatusText = status?.text
             )
         }
-    }
+
 }
