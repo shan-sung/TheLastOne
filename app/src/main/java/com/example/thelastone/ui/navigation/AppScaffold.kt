@@ -92,20 +92,22 @@ fun MainScaffold(nav: NavHostController) {
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            AppTopBar(
-                destination = currentDest,
-                isTopLevel = isTopLevel,
-                onBack = { nav.navigateUp() },
-                onExploreSearch = { nav.navigate(MiscRoutes.SearchPlaces) },
-                onFriendsSearch = { nav.navigate(MiscRoutes.SearchUsers) },
-                onEditProfile = { nav.navigate(MiscRoutes.EditProfile) },
-                onOpenTripChat = {
-                    val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
-                    nav.navigate(TripRoutes.chat(tripId))
-                },
-                onOpenTripMore = { /* TODO */ },
-                scrollBehavior = scroll
-            )
+            if (currentDest?.route != MiscRoutes.SearchPlaces) {
+                AppTopBar(
+                    destination = currentDest,
+                    isTopLevel = isTopLevel,
+                    onBack = { nav.navigateUp() },
+                    onExploreSearch = { nav.navigate(MiscRoutes.SearchPlaces) },
+                    onFriendsSearch = { nav.navigate(MiscRoutes.SearchUsers) },
+                    onEditProfile = { nav.navigate(MiscRoutes.EditProfile) },
+                    onOpenTripChat = {
+                        val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
+                        nav.navigate(TripRoutes.chat(tripId))
+                    },
+                    onOpenTripMore = { /* TODO */ },
+                    scrollBehavior = scroll
+                )
+            }
         },
         bottomBar = {
             if (currentDest?.route !in NO_BOTTOM_BAR_ROUTES) {
@@ -233,7 +235,7 @@ private fun MainNavHost(
         }
 
         // ===== 其他 =====
-        composable(MiscRoutes.SearchPlaces) { SearchPlacesScreen(padding) }
+        composable(MiscRoutes.SearchPlaces) { SearchPlacesScreen(onBack = { nav.navigateUp() }) }
         composable(MiscRoutes.SearchUsers)  { SearchUsersScreen(padding) }
         composable(MiscRoutes.EditProfile)  { EditProfileScreen(padding) }
     }

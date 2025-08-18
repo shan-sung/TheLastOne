@@ -29,6 +29,7 @@ android {
 
         // 將 key 丟給 Manifest
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
     }
 
     buildTypes {
@@ -49,6 +50,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -88,6 +90,7 @@ dependencies {
     implementation("com.google.android.libraries.places:places:4.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1") // ← 為 await()
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
 
     // Firebase（BOM）
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
