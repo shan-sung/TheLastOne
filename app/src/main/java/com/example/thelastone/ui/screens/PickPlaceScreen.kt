@@ -1,6 +1,5 @@
 package com.example.thelastone.ui.screens
 
-// ⚠️ 依你的檔案路徑調整 import
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
