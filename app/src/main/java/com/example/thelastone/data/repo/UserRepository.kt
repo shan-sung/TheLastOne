@@ -21,4 +21,7 @@ interface UserRepository {
 
     // （選用）查單一使用者
     suspend fun getUserById(userId: String): User?
+
+    suspend fun updateProfile(name: String? = null, avatarUrl: String? = null): User
+
 }

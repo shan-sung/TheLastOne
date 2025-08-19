@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.thelastone.data.model.User
@@ -153,6 +154,45 @@ private fun IncomingRow(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun M3Dialog(
+    onDismissRequest: () -> Unit,
+    tonalElevation: Dp = 6.dp,
+    headline: @Composable () -> Unit,
+    supportingText: (@Composable () -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit
+) {
+    BasicAlertDialog(onDismissRequest = onDismissRequest) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = tonalElevation
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                // 標題區
+                headline()
+
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                if (supportingText != null) {
+                    Spacer(Modifier.height(12.dp))
+                    supportingText()
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                // 動作列：靠右排列（次要在前、主要在後）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    actions()
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun IncomingRequestDialog(
     user: User,
@@ -160,14 +200,30 @@ private fun IncomingRequestDialog(
     onReject: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    M3Dialog(
         onDismissRequest = onDismiss,
-        icon = { Avatar(imageUrl = user.avatarUrl, size = 48.dp) },
-        title = { Text(user.name) },
-        text = { Text("好友數：${user.friends.size}") },
-        // 這裡用「拒絕 / 同意」兩顆
-        dismissButton = { TextButton(onClick = onReject) { Text("拒絕") } },
-        confirmButton = { TextButton(onClick = onAccept) { Text("同意") } }
+        headline = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(imageUrl = user.avatarUrl, size = 56.dp)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(user.name, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "${user.friends.size} friends",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        supportingText = {
+            Text("向你發出好友邀請", style = MaterialTheme.typography.bodyMedium)
+        },
+        actions = {
+            TextButton(onClick = onReject) { Text("拒絕") }
+            Spacer(Modifier.width(8.dp))
+            FilledTonalButton(onClick = onAccept) { Text("同意") }
+        }
     )
 }
 
@@ -176,12 +232,25 @@ private fun FriendInfoDialog(
     user: User,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    M3Dialog(
         onDismissRequest = onDismiss,
-        icon = { Avatar(imageUrl = user.avatarUrl, size = 48.dp) },
-        title = { Text(user.name) },
-        text = { Text("好友數：${user.friends.size}") },
-        // 目前好友只提供「關閉」，之後可加「解除好友/發訊息」
-        confirmButton = { TextButton(onClick = onDismiss) { Text("關閉") } }
+        headline = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(imageUrl = user.avatarUrl, size = 56.dp)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(user.name, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "${user.friends.size} friends",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        supportingText = null, // 這個不用內文就不放
+        actions = {
+            TextButton(onClick = onDismiss) { Text("關閉") }
+        }
     )
 }

@@ -109,5 +109,19 @@ class FakeUserRepository @Inject constructor(
     }
 
     override suspend fun getUserById(userId: String): User? = users[userId]
+
+    override suspend fun updateProfile(name: String?, avatarUrl: String?): User {
+        delay(150)
+        val me = session.currentUserId
+        val curr = users.getValue(me)
+        val updated = curr.copy(
+            name = name ?: curr.name,
+            avatarUrl = avatarUrl ?: curr.avatarUrl
+        )
+        users[me] = updated
+        // 同步 Session 中的 AuthUser
+        session.setAuth(AuthUser(token = session.auth.value!!.token, user = updated))
+        return updated
+    }
 }
 
