@@ -5,4 +5,6 @@ data class FriendRequest(
     val fromUserId: String,
     val toUserId: String,
     val status: String // "pending", "accepted", "rejected"
-)
+) {
+    val isPending: Boolean get() = status == "pending"
+}
