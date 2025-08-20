@@ -3,6 +3,9 @@ package com.example.thelastone.utils
 
 import android.util.Log
 import androidx.compose.material3.ColorScheme
+import java.time.DayOfWeek
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -82,5 +85,20 @@ fun getOpeningStatusInfo(
         OpeningStatusInfo("營業中 · 至 ${closeTime.format(out24)}", colorScheme.primary)
     } else {
         OpeningStatusInfo("尚未營業 · ${openTime.format(out24)} 開始", colorScheme.primary)
+    }
+}
+
+private fun mondayFirstTodayIndex(day: DayOfWeek) =
+    if (day == DayOfWeek.SUNDAY) 6 else day.value - 1
+
+/** 簡版 fallback：沒有 openStatusText 時，以 openNow + 今天描述湊一條 */
+fun buildOpenStatusTextFallback(openNow: Boolean?, weekdayDescriptions: List<String>, zoneId: ZoneId = ZoneId.systemDefault()): String? {
+    if (weekdayDescriptions.size < 7) return null
+    val idx = mondayFirstTodayIndex(ZonedDateTime.now(zoneId).dayOfWeek)
+    val today = weekdayDescriptions[idx]
+    return when (openNow) {
+        true  -> "營業中 · $today"
+        false -> "休息中 · $today"
+        null  -> today
     }
 }

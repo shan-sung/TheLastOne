@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,7 +105,7 @@ fun CreateTripFormScreen(
     val nameErr = validate.first
     val dateErr = validate.second
     val timeErr = validate.third
-    val allValid = nameErr == null && dateErr == null && timeErr == null
+    val allValid = nameErr == null && dateErr == null && timeErr == null && form.aiDisclaimerChecked
 
     // ---- UI ----
     Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -331,21 +333,68 @@ fun CreateTripFormScreen(
                     )
                 }
             }
+
+            // 8) 其他需求（選填，用於 AI prompt）
+            item {
+                Column {
+                    Text("其他需求（選填）", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = form.extraNote ?: "",
+                        onValueChange = viewModel::updateExtraNote,
+                        label = { Text("輸入其他需求") },
+                        supportingText = {
+                            Text("例如：喜歡看夜景、想吃米其林餐廳、不想走太多路…")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = false,
+                        maxLines = 3
+                    )
+                }
+            }
+
+            // 9) AI 提醒聲明（核取方塊）
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = form.aiDisclaimerChecked,
+                        onCheckedChange = { viewModel.setAiDisclaimer(it) }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "行程建議由 AI 產生，僅供參考，並非完全精準，請自行調整。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (submitted && !form.aiDisclaimerChecked) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "請勾選此聲明以繼續",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
             item { Spacer(Modifier.height(60.dp)) }
         }
 
         // 底部按鈕（滿版）
         Button(
             onClick = {
-                submitted = true                    // ← 第一次按才開始顯示錯誤
+                submitted = true
                 if (allValid) {
                     viewModel.generatePreview()
                     onPreview()
                 }
             },
-            enabled = true,
+            enabled = allValid,   // ← 直接用 allValid
             modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) { Text("預覽") }
+
     }
 
     // ===== DateRangePickerDialog（官方建議做法：在 Confirm 時讀取 state 並關閉） =====

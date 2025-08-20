@@ -16,5 +16,6 @@ data class TripForm(
     val useGmapsRating: Boolean,
     val styles: List<String>,
     val avgAge: AgeBand,
-    val visibility: TripVisibility = TripVisibility.PRIVATE     // ← 新增
+    val visibility: TripVisibility = TripVisibility.PRIVATE,
+    val extraNote: String? = null   // ← 新增，傳給後端 API
 )

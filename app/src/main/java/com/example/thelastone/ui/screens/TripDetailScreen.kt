@@ -51,6 +51,7 @@ import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.OpeningHour
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.RatingSection
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
+import com.example.thelastone.utils.buildOpenStatusTextFallback
 import com.example.thelastone.vm.TripDetailUiState
 import com.example.thelastone.vm.TripDetailViewModel
 
@@ -221,10 +222,16 @@ private fun ActivityBottomSheet(
 
             Spacer(Modifier.height(12.dp))
 
+            val statusText = remember(activity.place.openStatusText, activity.place.openNow, activity.place.openingHours) {
+                activity.place.openStatusText
+                    ?: buildOpenStatusTextFallback(activity.place.openNow, activity.place.openingHours)
+            }
+
             OpeningHoursSection(
-                hours = activity.place.openingHours ?: emptyList(),
-                statusText = null
+                hours = activity.place.openingHours,
+                statusText = statusText
             )
+
 
             activity.place.rating?.let { r ->
                 RatingSection(

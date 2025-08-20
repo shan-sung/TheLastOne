@@ -35,7 +35,9 @@ class TripFormViewModel @Inject constructor(
         val transportPreferences: List<String> = emptyList(),
         val avgAge: AgeBand = AgeBand.IGNORE,
         val useGmapsRating: Boolean = true,
-        val visibility: TripVisibility = TripVisibility.PRIVATE  // ✅ 新增
+        val visibility: TripVisibility = TripVisibility.PRIVATE,  // ✅ 新增
+        val extraNote: String? = null,
+        val aiDisclaimerChecked: Boolean = false
     )
 
     private val _form = MutableStateFlow(Form())
@@ -92,8 +94,17 @@ class TripFormViewModel @Inject constructor(
             if (ts == null || te == null) return ValidationResult(false, timeError = "活動時間格式錯誤")
             if (!te.isAfter(ts)) return ValidationResult(false, timeError = "結束時間需晚於開始時間")
         }
+
+        if (!f.aiDisclaimerChecked) {
+            return ValidationResult(false, nameError = null, dateError = null, timeError = null)
+        }
+
         return ValidationResult(true)
     }
+
+    fun updateExtraNote(v: String) = _form.update { it.copy(extraNote = v.take(200)) } // 最多 200 字
+    fun setAiDisclaimer(v: Boolean) = _form.update { it.copy(aiDisclaimerChecked = v) }
+
 
     // ===== 預覽狀態 =====
     sealed interface PreviewUiState {
@@ -148,5 +159,7 @@ class TripFormViewModel @Inject constructor(
             .onSuccess { _save.value = SaveUiState.Success(it.id) }
             .onFailure { _save.value = SaveUiState.Error(it.message ?: "Save failed") }
     }
+
+
     fun resetSaveState() { _save.value = SaveUiState.Idle }
 }
