@@ -1,6 +1,5 @@
 package com.example.thelastone.data.repo
 
-import com.example.thelastone.data.model.Place
 import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.SavedPlace
 import kotlinx.coroutines.flow.Flow

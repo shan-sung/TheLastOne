@@ -19,6 +19,9 @@ sealed class Root(val route: String) {
 
 // Trip 主線：以「巢狀 NavGraph」表達
 object TripRoutes {
+    const val Invite = "trip/{tripId}/invite"
+    fun invite(tripId: String) = "trip/$tripId/invite"
+
     // 巢狀圖本身（用於 navController.getBackStackEntry 供共用 VM）
     const val Flow = "trip_flow"
 

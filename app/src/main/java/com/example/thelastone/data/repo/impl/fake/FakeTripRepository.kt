@@ -9,6 +9,7 @@ import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.model.TripVisibility
 import com.example.thelastone.data.model.User
 import com.example.thelastone.data.repo.TripRepository
+import com.example.thelastone.data.repo.UserRepository
 import com.example.thelastone.di.SessionManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -29,7 +30,8 @@ import kotlin.random.Random
 
 @Singleton
 class FakeTripRepository @Inject constructor(
-    private val session: SessionManager
+    private val session: SessionManager,
+    private val userRepo: UserRepository
 ) : TripRepository {
     private val trips = ConcurrentHashMap<String, Trip>()
     private val tripsState = MutableStateFlow<Map<String, Trip>>(emptyMap())
@@ -157,6 +159,32 @@ class FakeTripRepository @Inject constructor(
     override suspend fun deleteTrip(tripId: String) {
         trips.remove(tripId)
         emitAll()                // ✅ 推播
+    }
+
+    override suspend fun addMembers(tripId: String, userIds: List<String>) {
+        delay(120) // 模擬延遲
+        val trip = trips[tripId] ?: error("Trip not found: $tripId")
+
+        // 已有成員 & 排除 owner
+        val existingIds = trip.members.map { it.id }.toSet()
+        val toAddIds = userIds
+            .asSequence()
+            .filter { it != trip.createdBy }
+            .filterNot { it in existingIds }
+            .distinct()
+            .toList()
+
+        if (toAddIds.isEmpty()) return
+
+        // 以 UserRepository 取回完整 User；找不到的就跳過
+        val toAddUsers = toAddIds.mapNotNull { uid -> userRepo.getUserById(uid) }
+        if (toAddUsers.isEmpty()) return
+
+        val updated = trip.copy(
+            members = (trip.members + toAddUsers).distinctBy { it.id }
+        )
+        trips[tripId] = updated
+        emitAll() // ✅ 推播狀態
     }
 
     private fun seedDemoTrips() {

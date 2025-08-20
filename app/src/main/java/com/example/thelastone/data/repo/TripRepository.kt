@@ -24,5 +24,6 @@ interface TripRepository {
     suspend fun updateActivity(tripId: String, dayIndex: Int, activityIndex: Int, updated: Activity)
     suspend fun removeActivity(tripId: String, dayIndex: Int, activityIndex: Int)
     suspend fun deleteTrip(tripId: String)
+    suspend fun addMembers(tripId: String, userIds: List<String>)
 }
 

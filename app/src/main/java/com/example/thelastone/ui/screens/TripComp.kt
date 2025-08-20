@@ -1,40 +1,55 @@
 package com.example.thelastone.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.Trip
+import com.example.thelastone.data.model.User
+import com.example.thelastone.ui.screens.comp.Avatar
 import com.example.thelastone.ui.state.EmptyState
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
-// ui/components/trip/TripInfoCard.kt
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TripInfoCard(trip: Trip, modifier: Modifier = Modifier) {
@@ -50,25 +65,98 @@ fun TripInfoCard(trip: Trip, modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+
+            // 旅程屬性 chips
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (trip.totalBudget != null) {
                     AssistChip(onClick = {}, label = { Text("NT$${trip.totalBudget}") })
                 }
                 if (trip.avgAge != AgeBand.IGNORE) {
                     AssistChip(onClick = {}, label = { Text(trip.avgAge.label()) })
                 }
-                trip.styles.forEach { s ->
-                    AssistChip(onClick = {}, label = { Text(s) })
+                trip.styles.forEach { s -> AssistChip(onClick = {}, label = { Text(s) }) }
+                trip.transportPreferences.forEach { t -> AssistChip(onClick = {}, label = { Text(t) }) }
+            }
+
+            // ==== NEW: Members ====
+            if (trip.members.isNotEmpty()) {
+                MembersSection(members = trip.members)
+            }
+        }
+    }
+}
+// MembersSection：把 Avatar 換成 AvatarWithTooltip
+@Composable
+private fun MembersSection(
+    members: List<User>,
+    maxShown: Int = 5
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Members（${members.size}）",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            members.take(maxShown).forEach { user ->
+                AvatarNameHint(user = user, size = 32.dp)
+            }
+            val more = members.size - maxShown
+            if (more > 0) {
+                AssistChip(onClick = {}, label = { Text("+$more") })
+            }
+        }
+    }
+}
+@Composable
+private fun AvatarNameHint(user: User, size: Dp) {
+    var show by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = Modifier
+            .semantics { contentDescription = user.name } // a11y：等同 alt
+    ) {
+        // 頭貼：點一下顯示 1.5 秒
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable {
+                    show = true
+                    scope.launch {
+                        kotlinx.coroutines.delay(1500)
+                        show = false
+                    }
                 }
-                trip.transportPreferences.forEach { t ->
-                    AssistChip(onClick = {}, label = { Text(t) })
+        ) {
+            Avatar(imageUrl = user.avatarUrl, size = size)
+        }
+
+        // 簡易 tooltip：浮在頭貼上方一點點
+        if (show) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-8).dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    tonalElevation = 4.dp
+                ) {
+                    Text(
+                        text = user.name,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
         }
     }
 }
+
 
 private fun AgeBand.label(): String = when (this) {
     AgeBand.IGNORE -> "不列入"
@@ -137,7 +225,6 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 fun LazyListScope.dayTabsAndActivities(
     trip: Trip,
@@ -147,7 +234,6 @@ fun LazyListScope.dayTabsAndActivities(
 ) {
     val monthDayFormatter = DateTimeFormatter.ofPattern("MM-dd")
     val isoFormatter = DateTimeFormatter.ISO_LOCAL_DATE
-
     stickyHeader {
         ScrollableTabRow(
             selectedTabIndex = selected,
@@ -185,7 +271,6 @@ fun LazyListScope.dayTabsAndActivities(
             }
         }
     }
-
     val day = trip.days.getOrNull(selected)
     if (day == null || day.activities.isEmpty()) {
         item {

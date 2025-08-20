@@ -9,7 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Message
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,13 +24,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -40,6 +40,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.dialog
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
@@ -47,6 +48,7 @@ import com.example.thelastone.ui.screens.AddActivityScreen
 import com.example.thelastone.ui.screens.EditProfileScreen
 import com.example.thelastone.ui.screens.ExploreScreen
 import com.example.thelastone.ui.screens.FriendsScreen
+import com.example.thelastone.ui.screens.InviteFriendsDialog
 import com.example.thelastone.ui.screens.PickPlaceScreen
 import com.example.thelastone.ui.screens.PreviewTripScreen
 import com.example.thelastone.ui.screens.ProfileScreen
@@ -96,6 +98,13 @@ fun MainScaffold(nav: NavHostController) {
         perms?.canChat == true
     } else false
 
+    val showInvite: Boolean = if (currentDest?.route == TripRoutes.Detail) {
+        val detailEntry = remember(backStack) { nav.getBackStackEntry(TripRoutes.Detail) }
+        val detailVm: TripDetailViewModel = hiltViewModel(detailEntry)
+        val perms by detailVm.perms.collectAsState()
+        perms?.canChat == true       // ← outsider 就會是 false
+        // 若改成只有 owner 能邀請，這行改為：perms?.canEditTrip == true
+    } else false
 
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
@@ -112,8 +121,13 @@ fun MainScaffold(nav: NavHostController) {
                         val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
                         nav.navigate(TripRoutes.chat(tripId))
                     },
+                    onInvite = {
+                        val tripId = backStack?.arguments?.getString("tripId") ?: return@AppTopBar
+                        nav.navigate(TripRoutes.invite(tripId))
+                    },
                     onOpenTripMore = { /* TODO */ },
-                    showTripChat = showTripChat,   // ← 用新的布林
+                    showTripChat = showTripChat,
+                    showInvite = showInvite,          // ← NEW
                     scrollBehavior = scroll
                 )
             }
@@ -206,6 +220,19 @@ private fun MainNavHost(
                 }
             )
         }
+
+        dialog(
+            route = TripRoutes.Invite,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType }),
+            dialogProperties = DialogProperties(usePlatformDefaultWidth = false)
+        ) { entry ->
+            val tripId = entry.arguments!!.getString("tripId")!!
+            InviteFriendsDialog(
+                tripId = tripId,
+                onDismiss = { nav.navigateUp() }
+            )
+        }
+
 
         // MainNavHost() 裡 TripRoutes.PickPlace 的 composable 區塊改成：
         composable(
@@ -308,6 +335,8 @@ private fun AppTopBar(
     onFriendsSearch: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenTripChat: () -> Unit,
+    onInvite: () -> Unit,
+    showInvite: Boolean,
     onOpenTripMore: () -> Unit,
     showTripChat: Boolean,                 // ← 新增參數
     scrollBehavior: TopAppBarScrollBehavior
@@ -365,9 +394,8 @@ private fun AppTopBar(
                             Icon(Icons.Filled.Message, contentDescription = "Trip chat")
                         }
                     }
-                    // More 一律保留（你說先留著）
-                    IconButton(onClick = onOpenTripMore) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    IconButton(onClick = onInvite) {                     // ← Invite
+                        Icon(Icons.Filled.PersonAdd, contentDescription = "Invite friends")
                     }
                 }
             }

@@ -40,7 +40,6 @@ fun RatingSection(
     )
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val colorScheme = MaterialTheme.colorScheme
 
     val header = "${String.format("%.1f", rating)} · ${totalReviews}則評價"
 

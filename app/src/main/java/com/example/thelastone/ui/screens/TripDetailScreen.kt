@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -29,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,6 +47,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.thelastone.data.model.Activity
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.OpeningHoursSection
+import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.RatingSection
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
 import com.example.thelastone.vm.TripDetailUiState
@@ -133,74 +138,153 @@ fun TripDetailScreen(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActivityBottomSheet(
     activity: Activity,
-    readOnly: Boolean,          // ← 新增：非 owner/member = true
-    canEdit: Boolean,           // ← 新增：只有 owner = true
+    readOnly: Boolean,
+    canEdit: Boolean,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onGoMaps: () -> Unit,
-    onStart: () -> Unit
+    onStart: () -> Unit,
+    note: String = "",
+    onNoteChange: (String) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var menuOpen by remember { mutableStateOf(false) }
+    var showConfirm by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp) // 由各區塊自行控距
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(activity.place.name, style = MaterialTheme.typography.titleLarge)
+            // Header：店名 + 更多選單
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = activity.place.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
 
-                // 仍保留 more-vert（你說要先留著），但唯讀時不顯示編輯/刪除
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More")
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (canEdit) {
-                            DropdownMenuItem(text = { Text("編輯") }, onClick = { menuOpen = false; onEdit() })
-                            DropdownMenuItem(text = { Text("刪除") }, onClick = { menuOpen = false; onDelete() })
-                        } else {
-                            // 你想放別的唯讀功能可在這裡加
+                if (canEdit) {
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("編輯") },
+                                onClick = { menuOpen = false; onEdit() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("刪除") },
+                                onClick = {
+                                    menuOpen = false
+                                    showConfirm = true
+                                }
+                            )
                         }
                     }
                 }
             }
 
+            // Supporting text：地址（與標題距離更近）
             activity.place.address?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp)) // 關鍵：縮短與標題距離
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
+            // 時間 & Google 評分摘要（屬於 metadata，使用較淡層級）
+            Spacer(Modifier.height(8.dp))
             val time = listOfNotNull(activity.startTime, activity.endTime)
                 .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
-            Text(time, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = time,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            OpeningHoursSection(
+                hours = activity.place.openingHours ?: emptyList(),
+                statusText = null
+            )
 
             activity.place.rating?.let { r ->
-                val txt = String.format("★ %.1f（%d）", r, activity.place.userRatingsTotal)
-                Text(txt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                RatingSection(
+                    rating = r,
+                    totalReviews = activity.place.userRatingsTotal ?: 0   // ← ?: 0
+                )
             }
 
-            Spacer(Modifier.height(8.dp))
+            // 備註區：遵循表單與閱讀混合的 M3 風格
+            Text(
+                text = note,
+                style = MaterialTheme.typography.bodyMedium
+            )
 
-            // 唯讀時不顯示操作按鈕
-            if (!readOnly) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onGoMaps, modifier = Modifier.weight(1f)) { Text("Go to Maps") }
-                    Button(onClick = onStart, modifier = Modifier.weight(1f)) { Text("Start") }
+            // 行動按鈕列
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onGoMaps,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Go to Maps")
+                }
+                if (!readOnly) {
+                    Button(
+                        onClick = onStart,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Start")
+                    }
                 }
             }
-
-            Spacer(Modifier.height(8.dp))
         }
     }
-}
 
+    // 確認刪除對話框
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("確認刪除") },
+            text = { Text("你確定要刪除此活動嗎？此操作無法復原。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConfirm = false
+                    onDelete()
+                }) { Text("刪除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+}
 
 private fun openInMaps(context: Context, activity: Activity) {
     val lat = activity.place.lat

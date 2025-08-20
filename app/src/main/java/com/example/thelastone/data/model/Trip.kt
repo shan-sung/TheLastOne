@@ -21,12 +21,12 @@ data class Trip(
 enum class TripVisibility { PUBLIC, PRIVATE }
 
 data class DaySchedule(
-    val date: String,              // "yyyy-MM-dd"
+    val date: String,
     val activities: List<Activity> = emptyList()
 )
 
 data class Activity(
-    val id: String,                 // 後端生成或 UUID
+    val id: String,
     val place: Place,
     val startTime: String? = null,  // "09:00"
     val endTime: String? = null,    // "11:30"

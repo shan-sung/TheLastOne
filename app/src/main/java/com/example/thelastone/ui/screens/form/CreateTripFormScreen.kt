@@ -143,12 +143,12 @@ fun CreateTripFormScreen(
                         FilterChip(
                             selected = isPublic,
                             onClick = { viewModel.setVisibility(TripVisibility.PUBLIC) },
-                            label = { Text("Public（公開）") }
+                            label = { Text("公開") }
                         )
                         FilterChip(
                             selected = !isPublic,
                             onClick = { viewModel.setVisibility(TripVisibility.PRIVATE) },
-                            label = { Text("Private（私密）") }
+                            label = { Text("私密") }
                         )
                     }
                     Spacer(Modifier.height(4.dp))

@@ -152,6 +152,7 @@ private fun SavedTab(
                         lat = sp.place.lat,
                         lng = sp.place.lng,
                         address = sp.place.address,
+                        openingHours = sp.place.openingHours,
                         rating = sp.place.rating,
                         userRatingsTotal = sp.place.userRatingsTotal,
                         photoUrl = sp.place.photoUrl
