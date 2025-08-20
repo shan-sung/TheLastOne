@@ -106,8 +106,6 @@ class ExploreViewModel @Inject constructor(
                 )
             }.onSuccess { list ->
                 _state.update { it.copy(nearby = list, nearbyLoading = false) }
-
-                // ★ 如果附近真的沒有，也別讓 UI 空著：自動切 Popular
                 if (list.isEmpty()) {
                     _state.update { it.copy(mode = ExploreMode.Popular) }
                     loadPopularSpotsIfNeeded()
@@ -116,7 +114,6 @@ class ExploreViewModel @Inject constructor(
                 _state.update {
                     it.copy(nearbyError = e.message ?: "附近景點載入失敗", nearbyLoading = false)
                 }
-                // ★ 失敗也退到 Popular
                 _state.update { it.copy(mode = ExploreMode.Popular) }
                 loadPopularSpotsIfNeeded()
             }
@@ -138,8 +135,6 @@ class ExploreViewModel @Inject constructor(
         if (s.popularSpots.isNotEmpty() || s.popularSpotsLoading) return
         loadPopularSpots()
     }
-
-    // 這裡示範用 Text Search 當 fallback（你可再依需求改 query/地區）
     fun loadPopularSpots(
         query: String = "top tourist attractions", // 或 "熱門景點"
     ) {
