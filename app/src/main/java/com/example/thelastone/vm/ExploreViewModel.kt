@@ -1,4 +1,3 @@
-// vm/ExploreViewModel.kt
 package com.example.thelastone.vm
 
 import androidx.lifecycle.ViewModel
@@ -14,7 +13,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-// ========== 新增：顯示模式 ==========
 sealed interface ExploreMode {
     data object Nearby : ExploreMode
     data object Popular : ExploreMode
@@ -50,8 +48,7 @@ class ExploreViewModel @Inject constructor(
     private val refresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     private fun popularTripsFlow(): Flow<List<Trip>> =
-        repo.observeMyTrips().map { list -> list.sortedBy { it.startDate } }
-
+        repo.observePublicTrips().map { list -> list.sortedBy { it.startDate } }
     @OptIn(ExperimentalCoroutinesApi::class)
     private val popularResource: Flow<Result<List<Trip>>> =
         refresh.onStart { emit(Unit) }
@@ -125,9 +122,6 @@ class ExploreViewModel @Inject constructor(
             }
         }
     }
-
-
-    // 使用者回覆權限的入口：統一在這裡決策
     fun onLocationPermissionResult(granted: Boolean) {
         if (granted) {
             // 交由 UI 端在拿到座標後呼叫 loadNearby()（你已經這樣做）
@@ -152,8 +146,6 @@ class ExploreViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(popularSpotsLoading = true, popularSpotsError = null) }
             runCatching {
-                // 若你的 PlacesRepository 有 searchText，就用 POPULARITY 排序
-                // lat/lng 為 null 代表無定位，讓後端靠語意或預設區域回傳
                 placesRepo.searchText(
                     query = query,
                     lat = null, lng = null,
@@ -169,5 +161,4 @@ class ExploreViewModel @Inject constructor(
             }
         }
     }
-
 }

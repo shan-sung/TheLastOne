@@ -1,13 +1,12 @@
 package com.example.thelastone.data.repo.impl.fake
 
-// ====== FakeTripRepository（修正版，使用 java.time） ======
-
 import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.DaySchedule
 import com.example.thelastone.data.model.Place
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
+import com.example.thelastone.data.model.TripVisibility
 import com.example.thelastone.data.model.User
 import com.example.thelastone.data.repo.TripRepository
 import com.example.thelastone.di.SessionManager
@@ -47,6 +46,7 @@ class FakeTripRepository @Inject constructor(
         val days = enumerateDates(form.startDate, form.endDate).map { d ->
             DaySchedule(d, mockActivitiesForDay(d, form.useGmapsRating, form.activityStart, form.activityEnd))
         }
+        // CHANGED: FakeTripRepository.createTrip()
         return Trip(
             id = "preview-${UUID.randomUUID()}",
             createdBy = me,
@@ -60,6 +60,7 @@ class FakeTripRepository @Inject constructor(
             transportPreferences = form.transportPreferences,
             useGmapsRating = form.useGmapsRating,
             styles = form.styles,
+            visibility = form.visibility,           // ← 帶入表單值
             members = emptyList(),
             days = days
         )
@@ -70,7 +71,7 @@ class FakeTripRepository @Inject constructor(
         delay(200)
         val me = session.currentUserId
         val finalId = if (trip.id.startsWith("preview-")) "trip-${UUID.randomUUID()}" else trip.id
-        val saved = trip.copy(id = finalId, createdBy = me)
+        val saved = trip.copy(id = finalId, createdBy = me) // visibility 沿用 trip 本身即可
         trips[finalId] = saved
         emitAll()
         return saved
@@ -96,6 +97,22 @@ class FakeTripRepository @Inject constructor(
                 }
                 .distinctUntilChanged()
         }
+
+    override suspend fun getPublicTrips(): List<Trip> {
+        delay(120)
+        return trips.values
+            .filter { it.visibility == TripVisibility.PUBLIC }
+            .sortedBy { LocalDate.parse(it.startDate) }
+    }
+
+    override fun observePublicTrips(): Flow<List<Trip>> =
+        tripsState
+            .map { map ->
+                map.values
+                    .filter { it.visibility == TripVisibility.PUBLIC }
+                    .sortedBy { LocalDate.parse(it.startDate) }
+            }
+            .distinctUntilChanged()
 
     override suspend fun getTripDetail(tripId: String): Trip {
         delay(80)
@@ -154,7 +171,8 @@ class FakeTripRepository @Inject constructor(
             members: List<User> = listOf(User(id = "friend-1", email = "a@b.com", name = "Alice")),
             activityStart: String? = "09:00",
             activityEnd: String? = "18:00",
-            avgAge: AgeBand = AgeBand.A18_25
+            avgAge: AgeBand = AgeBand.A18_25,
+            vis: TripVisibility = TripVisibility.PRIVATE
         ): Trip {
             val startStr = start.format(fmt)
             val endStr = start.plusDays(daysCount - 1).format(fmt)
@@ -183,14 +201,16 @@ class FakeTripRepository @Inject constructor(
                 transportPreferences = listOf("Walk", "MRT"),
                 useGmapsRating = true,
                 styles = listOf("Foodie", "Relax"),
+                visibility = vis,                // ←← 補這行！
                 members = members,
                 days = daySchedules
             )
         }
 
+
         // ---- 測試資料 ----
         // 1. demo-user 建立 → 自己是 owner
-        val t1 = mkTrip("台北 2 日小旅行", today.plusDays(1), 2)
+        val t1 = mkTrip("台北 2 日小旅行 (公開)", today.plusDays(1), 2, vis = TripVisibility.PUBLIC)
 
         // 2. demo-user 建立，但有多個成員 → 仍然 owner，可看到 FAB + Chat
         val t2 = mkTrip(
@@ -201,6 +221,7 @@ class FakeTripRepository @Inject constructor(
                 User(id = "friend-1", email = "a@b.com", name = "Alice"),
                 User(id = "friend-2", email = "b@c.com", name = "Bob")
             )
+            , vis = TripVisibility.PUBLIC
         )
 
         // 3. friend-1 建立，demo-user 是成員 → 我是 member，有 Chat 沒 FAB
@@ -212,7 +233,8 @@ class FakeTripRepository @Inject constructor(
             members = listOf(
                 User(id = "demo-user", email = "demo@example.com", name = "Demo User"),
                 User(id = "friend-2", email = "b@c.com", name = "Bob")
-            )
+            ),
+            vis = TripVisibility.PRIVATE
         )
 
         // 4. someone-else 建立，不包含 demo-user → outsider，只能預覽
@@ -221,7 +243,8 @@ class FakeTripRepository @Inject constructor(
             today.plusDays(7),
             2,
             createdBy = "someone-else",
-            members = listOf(User(id = "friend-1", email = "a@b.com", name = "Alice"))
+            members = listOf(User(id = "friend-1", email = "a@b.com", name = "Alice")),
+            vis = TripVisibility.PRIVATE
         )
 
         // 5. friend-2 建立，成員包含 demo-user 與 friend-1 → 我仍是 member
@@ -233,7 +256,8 @@ class FakeTripRepository @Inject constructor(
             members = listOf(
                 User(id = "demo-user", email = "demo@example.com", name = "Demo User"),
                 User(id = "friend-1", email = "a@b.com", name = "Alice")
-            )
+            ),
+            vis = TripVisibility.PUBLIC
         )
 
         trips[t1.id] = t1

@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.thelastone.data.model.AgeBand
+import com.example.thelastone.data.model.TripVisibility
 import com.example.thelastone.vm.TripFormViewModel
 import java.time.Instant
 import java.time.LocalDate
@@ -130,6 +131,34 @@ fun CreateTripFormScreen(
                 )
             }
 
+            item {
+                Column {
+                    Text("可見性", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val isPublic = form.visibility == TripVisibility.PUBLIC
+                        FilterChip(
+                            selected = isPublic,
+                            onClick = { viewModel.setVisibility(TripVisibility.PUBLIC) },
+                            label = { Text("Public（公開）") }
+                        )
+                        FilterChip(
+                            selected = !isPublic,
+                            onClick = { viewModel.setVisibility(TripVisibility.PRIVATE) },
+                            label = { Text("Private（私密）") }
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    val tip = if (form.visibility == TripVisibility.PUBLIC)
+                        "公開行程會出現在 Explore，所有人可瀏覽"
+                    else
+                        "私密行程僅你本人與成員可見"
+                    Text(tip, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             // 2) 日期區間（無預設顯示；按確定自動關閉）
             item {
                 Column {

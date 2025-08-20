@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
+import com.example.thelastone.data.model.TripVisibility
 import com.example.thelastone.data.repo.TripRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,10 +31,11 @@ class TripFormViewModel @Inject constructor(
         val endDate: String = "",
         val activityStart: String? = null,
         val activityEnd: String? = null,
-        val styles: List<String> = emptyList(),                // 修正
-        val transportPreferences: List<String> = emptyList(), // 修正
+        val styles: List<String> = emptyList(),
+        val transportPreferences: List<String> = emptyList(),
         val avgAge: AgeBand = AgeBand.IGNORE,
-        val useGmapsRating: Boolean = true
+        val useGmapsRating: Boolean = true,
+        val visibility: TripVisibility = TripVisibility.PRIVATE  // ✅ 新增
     )
 
     private val _form = MutableStateFlow(Form())
@@ -113,6 +115,10 @@ class TripFormViewModel @Inject constructor(
     private val _save = MutableStateFlow<SaveUiState>(SaveUiState.Idle)
     val save: StateFlow<SaveUiState> = _save
 
+    fun setVisibility(v: TripVisibility) {
+        _form.update { it.copy(visibility = v) }
+    }
+
     fun generatePreview() = viewModelScope.launch {
         val f = _form.value
         val v = validate(f)
@@ -128,7 +134,8 @@ class TripFormViewModel @Inject constructor(
             transportPreferences = f.transportPreferences,
             useGmapsRating = f.useGmapsRating,
             styles = f.styles,
-            avgAge = f.avgAge
+            avgAge = f.avgAge,
+            visibility = TripVisibility.PUBLIC
         )) }
             .onSuccess { _preview.value = PreviewUiState.Data(it) }
             .onFailure { _preview.value = PreviewUiState.Error(it.message ?: "Preview failed") }

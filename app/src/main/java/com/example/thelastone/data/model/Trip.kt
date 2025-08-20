@@ -13,9 +13,12 @@ data class Trip(
     val transportPreferences: List<String>,
     val useGmapsRating: Boolean,
     val styles: List<String>,
+    val visibility: TripVisibility = TripVisibility.PRIVATE,
     val members: List<User> = emptyList(),
     val days: List<DaySchedule> = emptyList()
 )
+
+enum class TripVisibility { PUBLIC, PRIVATE }
 
 data class DaySchedule(
     val date: String,              // "yyyy-MM-dd"

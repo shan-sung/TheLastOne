@@ -54,7 +54,7 @@ fun ExploreScreen(
     // ★ 收藏 VM
     val savedVm: SavedViewModel = hiltViewModel()
     val savedUi by savedVm.state.collectAsState()
-    var preview by remember { mutableStateOf<com.example.thelastone.data.model.PlaceLite?>(null) }
+    var preview by remember { mutableStateOf<PlaceLite?>(null) }
 
     val context = LocalContext.current
     val hasLocationPermission = remember { mutableStateOf(false) }
@@ -107,11 +107,9 @@ fun ExploreScreen(
             vm.loadNearby(lat, lng, radiusMeters = 6000) // 半徑加大一點，比較不容易空清單
         }
     }
-
-
     // ========= 依 mode 決定「要顯示的標題 / 資料 / 載入與錯誤」 =========
     val sectionTitle: String
-    val placesToShow: List<com.example.thelastone.data.model.PlaceLite>
+    val placesToShow: List<PlaceLite>
     val sectionLoading: Boolean
     val sectionError: String?
 

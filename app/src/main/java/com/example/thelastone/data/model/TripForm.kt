@@ -7,13 +7,14 @@ enum class AgeBand {
 
 data class TripForm(
     val name: String,
-    val totalBudget: Int?,                 // 單位：新台幣（只存純數字）
-    val startDate: String,                 // yyyy-MM-dd
-    val endDate: String,                   // yyyy-MM-dd
-    val activityStart: String?,            // "HH:mm"（選填）
-    val activityEnd: String?,              // "HH:mm"（選填）
+    val totalBudget: Int?,
+    val startDate: String,
+    val endDate: String,
+    val activityStart: String?,
+    val activityEnd: String?,
     val transportPreferences: List<String>,
     val useGmapsRating: Boolean,
     val styles: List<String>,
-    val avgAge: AgeBand                    // ✅ 單選必填（含 IGNORE）
+    val avgAge: AgeBand,
+    val visibility: TripVisibility = TripVisibility.PRIVATE     // ← 新增
 )
