@@ -20,8 +20,8 @@ import javax.inject.Inject
 class TripFormViewModel @Inject constructor(
     private val repo: TripRepository
 ) : ViewModel() {
-    val styleOptions = listOf("Relax","Foodie","Culture","Nature","Nightlife","Family")
-    val transportOptions = listOf("Walk","Bike","Bus","MRT","Car","Taxi")
+    val styleOptions = listOf("自然探索","藝術文青","休閒放鬆","文化歷史","美食巡禮","親子友善", "購物娛樂", "社群打卡")
+    val transportOptions = listOf("步行","大眾運輸", "汽車", "機車")
 
     data class Form(
         val name: String = "",

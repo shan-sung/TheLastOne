@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.ui.screens.comp.PlaceCard
 import com.example.thelastone.ui.screens.comp.TripCard
@@ -273,14 +274,14 @@ fun NearbySection(
     title: String = "Nearby Spots",
     isLoading: Boolean,
     error: String?,
-    places: List<com.example.thelastone.data.model.PlaceLite>,
+    places: List<PlaceLite>,
     onOpenPlace: (String) -> Unit,
     onRetry: () -> Unit = {},
     itemsPerPage: Int = 3,
     autoScroll: Boolean = true,
     autoScrollMillis: Long = 4_000L,
     savedIds: Set<String> = emptySet(),
-    onToggleSave: (com.example.thelastone.data.model.PlaceLite) -> Unit = {}
+    onToggleSave: (PlaceLite) -> Unit = {}
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp))

@@ -157,6 +157,20 @@ fun CreateTripFormScreen(
                 }
             }
 
+            // 8) 總預算（選填）
+            item {
+                OutlinedTextField(
+                    value = form.totalBudget?.toString() ?: "",
+                    onValueChange = viewModel::updateBudgetText,
+                    label = { Text("總預算（新台幣，可留空）") },
+                    singleLine = true,
+                    prefix = { Text("NT$ ") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    supportingText = { Text("僅接受數字；不輸入表示未定") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             // 3) 活動時間（無預設顯示；清除鍵 TextButton 靠右）
             item {
                 Column {
@@ -288,21 +302,6 @@ fun CreateTripFormScreen(
                     )
                 }
             }
-
-            // 8) 總預算（選填）
-            item {
-                OutlinedTextField(
-                    value = form.totalBudget?.toString() ?: "",
-                    onValueChange = viewModel::updateBudgetText,
-                    label = { Text("總預算（新台幣，可留空）") },
-                    singleLine = true,
-                    prefix = { Text("NT$ ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    supportingText = { Text("僅接受數字；不輸入表示未定") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
             item { Spacer(Modifier.height(60.dp)) }
         }
 
