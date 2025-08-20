@@ -29,15 +29,12 @@ data class ExploreUiState(
     val nearbyError: String? = null,
     val nearbyLoading: Boolean = false,
 
-    // ========== 新增：Popular Spots ==========
     val popularSpots: List<PlaceLite> = emptyList(),
     val popularSpotsError: String? = null,
     val popularSpotsLoading: Boolean = false,
 
-    // ========== 新增：目前模式 ==========
     val mode: ExploreMode = ExploreMode.Popular
 )
-
 
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
