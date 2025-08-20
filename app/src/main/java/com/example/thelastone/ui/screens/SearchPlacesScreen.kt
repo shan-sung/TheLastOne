@@ -49,43 +49,41 @@ import com.example.thelastone.vm.SavedViewModel
 fun SearchPlacesScreen(
     viewModel: PlaceSearchViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
-    // ★ 新增：是否用於挑選行程（Pick Place）
     isPickingForTrip: Boolean = false,
-    // ★ 新增：挑選完成回調（只在 isPickingForTrip = true 時會被呼叫）
     onPick: (PlaceLite) -> Unit = {}
 ) {
     val s by viewModel.state.collectAsState()
     val savedVm: SavedViewModel = hiltViewModel()
     val savedUi by savedVm.state.collectAsState()
+
+    // 官方建議：進入搜尋頁可預設為 active=true（此頁就是搜尋場景）
     var active by rememberSaveable { mutableStateOf(true) }
+
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+
     var selected by remember { mutableStateOf<PlaceLite?>(null) }
     var showDialog by remember { mutableStateOf(false) }
     var requestedFocus by rememberSaveable { mutableStateOf(false) }
 
-    // 返回鍵優先處理 UI 狀態
-    BackHandler(enabled = showDialog || active || s.query.isNotEmpty()) {
-        when {
-            showDialog -> showDialog = false
-            active -> active = false
-            s.query.isNotEmpty() -> viewModel.updateQuery("")
-            else -> onBack()
+    // ✅ 返回鍵：不管 active 狀態，直接返回
+    BackHandler {
+        if (showDialog) {
+            showDialog = false
+        } else {
+            onBack()
         }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-        keyboard?.show()
-    }
-
+    // active->true 時才請求焦點與鍵盤；false 時收鍵盤
     LaunchedEffect(active) {
         if (active && !requestedFocus) {
             requestedFocus = true
             focusRequester.requestFocus()
             keyboard?.show()
+        } else if (!active) {
+            keyboard?.hide()
         }
-        if (!active) keyboard?.hide()
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -100,25 +98,25 @@ fun SearchPlacesScreen(
                 keyboard?.hide()
             },
             active = active,
-            onActiveChange = { active = it },
+            // 官方建議：SearchBar 展開/收合交給 active 控制；收合不自動清空 query
+            onActiveChange = { isActive -> active = isActive },
             placeholder = { Text("搜尋景點、餐廳、地址…") },
+            // ✅ 左上角箭頭：直接返回
             leadingIcon = {
-                IconButton(onClick = {
-                    if (active) active = false else onBack()
-                }) {
+                IconButton(onClick = { onBack() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             },
             trailingIcon = {
                 when {
                     s.loading -> {
-                        // 小的 loading 指示（避免搶版面）
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp
                         )
                     }
                     s.query.isNotEmpty() -> {
+                        // ✅ 清除鍵只負責清字，不處理返回
                         IconButton(onClick = { viewModel.updateQuery("") }) {
                             Icon(Icons.Filled.Close, contentDescription = "Clear")
                         }
@@ -126,42 +124,45 @@ fun SearchPlacesScreen(
                 }
             }
         ) {
-            if (s.error != null) {
-                ErrorState(
-                    message = s.error!!,
-                    onRetry = { viewModel.searchNow() }   // 或清空再搜
-                )
-            }else if (!s.loading && s.results.isEmpty() && s.query.isNotBlank()) {
-                EmptyState(
-                    title = "找不到與「${s.query}」相符的地點",
-                    description = "試試別的關鍵字，或加入地區、類型，例如：\"台大 咖啡\""
-                )
-            }else {
-
-                LazyColumn(Modifier.fillMaxSize().imePadding()) {
-                    items(s.results, key = { it.placeId }) { p ->
-                        ListItem(
-                            headlineContent = { Text(p.name) },
-                            supportingContent = {
-                                Column {
-                                    p.address?.let { Text(it) }
-                                    if (p.rating != null && p.userRatingsTotal != null) {
-                                        Text(
-                                            "★ ${"%.1f".format(p.rating)}（${p.userRatingsTotal}）",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
+            when {
+                s.error != null -> {
+                    ErrorState(
+                        message = s.error!!,
+                        onRetry = { viewModel.searchNow() }
+                    )
+                }
+                !s.loading && s.results.isEmpty() && s.query.isNotBlank() -> {
+                    EmptyState(
+                        title = "找不到與「${s.query}」相符的地點",
+                        description = "試試別的關鍵字，或加入地區、類型，例如：\"台大 咖啡\""
+                    )
+                }
+                else -> {
+                    LazyColumn(Modifier.fillMaxSize().imePadding()) {
+                        items(s.results, key = { it.placeId }) { p ->
+                            ListItem(
+                                headlineContent = { Text(p.name) },
+                                supportingContent = {
+                                    Column {
+                                        p.address?.let { Text(it) }
+                                        if (p.rating != null && p.userRatingsTotal != null) {
+                                            Text(
+                                                "★ ${"%.1f".format(p.rating)}（${p.userRatingsTotal}）",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
                                     }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selected = p
-                                    showDialog = true
-                                }
-                                .padding(horizontal = 4.dp)
-                        )
-                        Divider()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selected = p
+                                        showDialog = true
+                                    }
+                                    .padding(horizontal = 4.dp)
+                            )
+                            Divider()
+                        }
                     }
                 }
             }
@@ -184,7 +185,6 @@ fun SearchPlacesScreen(
             mode = mode,
             onDismiss = { showDialog = false },
             onAddToItinerary = {
-                // 只有 pick 模式會進來
                 p?.let(onPick)
                 showDialog = false
             },

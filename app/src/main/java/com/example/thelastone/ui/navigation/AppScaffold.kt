@@ -91,7 +91,7 @@ fun MainScaffold(nav: NavHostController) {
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            if (currentDest?.route !in setOf( MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick )) {
+            if (currentDest?.route !in setOf( MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick, MiscRoutes.SearchUsers )) {
                 AppTopBar(
                     destination = currentDest,
                     isTopLevel = isTopLevel,
@@ -272,7 +272,12 @@ private fun MainNavHost(
                 isPickingForTrip = false
             )
         }
-        composable(MiscRoutes.SearchUsers)  { SearchUsersScreen(padding) }
+        composable(MiscRoutes.SearchUsers) {
+            SearchUsersScreen(
+                padding = padding,
+                onBack = { nav.navigateUp() } // ← 加上 onBack 讓箭頭直接返回
+            )
+        }
         composable(MiscRoutes.EditProfile)  { EditProfileScreen(padding) }
     }
 }
