@@ -135,7 +135,6 @@ private fun PopularTab(
     }
 }
 
-
 @Composable
 private fun SavedTab(
     onCardClick: (PlaceLite) -> Unit,
