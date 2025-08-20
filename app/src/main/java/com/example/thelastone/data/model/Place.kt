@@ -5,15 +5,18 @@ import kotlinx.serialization.Serializable
 data class Place(
     val placeId: String,
     val name: String,
-    val rating: Double?,                   // << 改成 Double? 解決你的型別錯誤
+    val rating: Double?,
     val userRatingsTotal: Int?,
     val address: String?,
     val openingHours: List<String> = emptyList(),
+    val openNow: Boolean? = null,          // ← 新增
+    val openStatusText: String? = null,    // ← 新增
     val lat: Double,
     val lng: Double,
     val photoUrl: String? = null,
     val miniMapUrl: String? = null
 )
+
 
 // data/model/Place.kt
 data class PlaceDetails(
@@ -52,7 +55,21 @@ data class PlaceLite(
 
 
 // 互轉（在 PickPlace 選完 & AddActivity 要建 Activity 時用）
-fun Place.toLite() = PlaceLite(placeId, name, lat, lng, address, rating, userRatingsTotal, photoUrl, openingHours)
+// 互轉（建議補上 openNow / openStatusText）
+fun Place.toLite() = PlaceLite(
+    placeId = placeId,
+    name = name,
+    lat = lat,
+    lng = lng,
+    address = address,
+    rating = rating,
+    userRatingsTotal = userRatingsTotal,
+    photoUrl = photoUrl,
+    openingHours = openingHours,
+    openNow = null,             // 如果此時沒有，就先 null
+    openStatusText = null
+)
+
 fun PlaceLite.toFull(): Place = Place(
     placeId = placeId,
     name = name,
@@ -62,6 +79,6 @@ fun PlaceLite.toFull(): Place = Place(
     lat = lat,
     lng = lng,
     photoUrl = photoUrl,
-    openingHours = openingHours,   // 👈 帶進去
+    openingHours = openingHours,
     miniMapUrl = null
 )

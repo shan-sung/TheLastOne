@@ -21,5 +21,8 @@ data class SavedPlaceEntity(
     val rating: Double?,
     val userRatingsTotal: Int?,
     val photoUrl: String?,
+    val openingHoursJson: String? = null, // 新增
+    val openNow: Boolean? = null,         // 可選
+    val openStatusText: String? = null,   // 可選
     val savedAt: Long = System.currentTimeMillis()
 )

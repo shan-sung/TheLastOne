@@ -9,6 +9,8 @@ import com.example.thelastone.data.repo.SavedRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 class SavedRepositoryImpl @Inject constructor(
@@ -18,12 +20,18 @@ class SavedRepositoryImpl @Inject constructor(
     override fun observeIds(): Flow<Set<String>> =
         dao.observeIds().map { it.toSet() }
 
+    // SavedRepositoryImpl.observeAll()
     override fun observeAll(): Flow<List<SavedPlace>> =
         dao.observeAll().map { list ->
             list.map { e ->
+                val hours: List<String> =
+                    e.openingHoursJson?.let {
+                        try { Json.decodeFromString<List<String>>(it) } catch (_: Exception) { emptyList() }
+                    } ?: emptyList()
+
                 SavedPlace(
                     id = e.placeId,
-                    userId = "local", // 目前單使用者；未來換成真正 userId
+                    userId = "local",
                     place = Place(
                         placeId = e.placeId,
                         name = e.name,
@@ -33,13 +41,16 @@ class SavedRepositoryImpl @Inject constructor(
                         lat = e.lat,
                         lng = e.lng,
                         photoUrl = e.photoUrl,
-                        miniMapUrl = null,
-                        openingHours = emptyList()
+                        openingHours = hours,
+                        openNow = e.openNow,                   // ✅ 帶回
+                        openStatusText = e.openStatusText,     // ✅ 帶回
+                        miniMapUrl = null
                     ),
                     savedAt = e.savedAt
                 )
             }
         }
+
 
     override suspend fun save(place: PlaceLite) {
         val entity = SavedPlaceEntity(
@@ -50,21 +61,27 @@ class SavedRepositoryImpl @Inject constructor(
             lng = place.lng,
             rating = place.rating,
             userRatingsTotal = place.userRatingsTotal,
-            photoUrl = place.photoUrl
+            photoUrl = place.photoUrl,
+
+            // ✅ 新增欄位寫入
+            openingHoursJson = place.openingHours
+                .takeIf { it.isNotEmpty() }
+                ?.let { Json.encodeToString(it) },
+            openNow = place.openNow,
+            openStatusText = place.openStatusText
         )
         dao.upsert(entity)
     }
+
 
     override suspend fun unsave(placeId: String) {
         dao.delete(placeId)
     }
 
     override suspend fun toggle(place: PlaceLite) {
-        val currentIds = observeIds()  // Flow -> snapshot 不方便；改兩階段簡化如下：
-        // 簡單化：先嘗試刪除，若受影響 0 筆，再 upsert
-        // Room Dao 不回傳刪除數，若需要可改寫 @Query 回傳 Int；這裡直接查 ids 判斷
-        // （避免多次 DB 觀察，這裡再查一次最穩）
-        val isSaved = dao.observeIds().map { it.contains(place.placeId) }.first()
-        if (isSaved) dao.delete(place.placeId) else save(place)
+        val deleted = dao.delete(place.placeId)
+        if (deleted == 0) {
+            save(place)
+        }
     }
 }

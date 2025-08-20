@@ -15,5 +15,5 @@ interface SavedPlaceDao {
     suspend fun upsert(entity: SavedPlaceEntity)
 
     @Query("DELETE FROM saved_places WHERE placeId = :placeId")
-    suspend fun delete(placeId: String)
+    suspend fun delete(placeId: String): Int // ← 回傳 Int
 }

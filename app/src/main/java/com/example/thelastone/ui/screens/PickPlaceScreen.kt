@@ -1,13 +1,14 @@
 package com.example.thelastone.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -115,22 +116,25 @@ private fun PopularTab(
     val ui by vm.state.collectAsState()
     when {
         ui.nearbyLoading -> LoadingState(Modifier.fillMaxSize(), "載入中…")
-        ui.nearbyError != null -> ErrorState(Modifier.fillMaxSize(), ui.nearbyError!!, onRetry = { /* TODO: 重新抓 */ })
+        ui.nearbyError != null -> ErrorState(Modifier.fillMaxSize(), ui.nearbyError!!, onRetry = { /* TODO */ })
         else -> {
-            Column(Modifier.fillMaxSize().padding(16.dp)) {
-                ui.nearby.forEach { p ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(ui.nearby, key = { it.placeId }) { p ->
                     PlaceCard(
                         place = p,
                         onClick = { onCardClick(p) },
                         isSaved = isSaved(p.placeId),
                         onToggleSave = { onToggleSave(p) }
                     )
-                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
     }
 }
+
 
 @Composable
 private fun SavedTab(
@@ -144,18 +148,24 @@ private fun SavedTab(
         ui.error != null -> ErrorState(Modifier.fillMaxSize(), ui.error!!, onRetry = { })
         ui.items.isEmpty() -> EmptyState(Modifier.fillMaxSize(), "尚未收藏景點")
         else -> {
-            Column(Modifier.fillMaxSize().padding(16.dp)) {
-                ui.items.forEach { sp ->
+            // ✅ 用 LazyColumn，避免 Column+forEach 的回收/效能問題
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(ui.items, key = { it.id }) { sp ->
                     val p = PlaceLite(
                         placeId = sp.place.placeId,
                         name = sp.place.name,
                         lat = sp.place.lat,
                         lng = sp.place.lng,
                         address = sp.place.address,
-                        openingHours = sp.place.openingHours,
                         rating = sp.place.rating,
                         userRatingsTotal = sp.place.userRatingsTotal,
-                        photoUrl = sp.place.photoUrl
+                        photoUrl = sp.place.photoUrl,
+                        openingHours = sp.place.openingHours,
+                        openNow = sp.place.openNow,                    // ✅ 帶上
+                        openStatusText = sp.place.openStatusText       // ✅ 帶上
                     )
                     PlaceCard(
                         place = p,
@@ -163,7 +173,6 @@ private fun SavedTab(
                         isSaved = true,
                         onToggleSave = { onToggleSave(p) }
                     )
-                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
