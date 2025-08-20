@@ -72,7 +72,9 @@ class PlacesRepositoryImpl @Inject constructor(
     }
 
     override suspend fun fetchDetails(placeId: String): PlaceDetails {
-        val apiPlace = api.fetchDetails(placeId = "places/$placeId")  // ← API 要帶前綴
+        // 這裡不要加 "places/"
+        val apiPlace = api.fetchDetails(placeId = placeId)
+
         val id = apiPlace.id?.substringAfter("places/") ?: placeId
         val photoName = apiPlace.photos?.firstOrNull()?.name
         val photoUrl = photoName?.let { buildPhotoUrl(it, 800) }
@@ -85,13 +87,15 @@ class PlacesRepositoryImpl @Inject constructor(
         return PlaceDetails(
             placeId = id,
             name = apiPlace.displayName?.text ?: "未命名地點",
-            address = apiPlace.formattedAddress?.let(::stripPostalCodeIfAny)?.let(::stripCountryTaiwanPrefix),
+            address = apiPlace.formattedAddress
+                ?.let(::stripPostalCodeIfAny)
+                ?.let(::stripCountryTaiwanPrefix),
             lat = apiPlace.location?.latitude ?: 0.0,
             lng = apiPlace.location?.longitude ?: 0.0,
             rating = apiPlace.rating,
             userRatingsTotal = apiPlace.userRatingCount,
             photoUrl = photoUrl,
-            types = emptyList(), // 你可在 ApiPlace 加上 types 後帶入
+            types = emptyList(),
             websiteUri = apiPlace.websiteUri,
             nationalPhoneNumber = apiPlace.nationalPhoneNumber,
             priceLevel = apiPlace.priceLevel,

@@ -25,13 +25,15 @@ class SavedViewModel @Inject constructor(
     private val _state = MutableStateFlow(SavedUiState())
     val state: StateFlow<SavedUiState> = _state
 
-    init {
+    init { observe() }
+
+    private fun observe() {
         viewModelScope.launch {
             combine(
                 repo.observeAll(),
                 repo.observeIds()
             ) { list, ids -> list to ids }
-                .onStart { _state.update { it.copy(loading = true) } }
+                .onStart { _state.update { it.copy(loading = true, error = null) } }
                 .catch { e -> _state.update { it.copy(loading = false, error = e.message) } }
                 .collect { (list, ids) ->
                     _state.value = SavedUiState(
@@ -42,6 +44,12 @@ class SavedViewModel @Inject constructor(
                     )
                 }
         }
+    }
+
+    fun refresh() {
+        // 若你的 repo 支援主動拉資料，可呼叫 repo.refresh()
+        // 這裡做最保守：重建 observe 流程
+        observe()
     }
 
     fun toggle(place: PlaceLite) = viewModelScope.launch {

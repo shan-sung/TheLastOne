@@ -18,11 +18,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.ActionButtonsRow
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.ImgSection
@@ -30,6 +35,50 @@ import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.MapSection
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.OpeningHoursSection
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.PlaceActionMode
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.RatingSection
+import com.example.thelastone.vm.PlaceDetailViewModel
+
+@Composable
+fun PlaceDetailDialogHost(
+    place: PlaceLite?,
+    mode: PlaceActionMode,
+    onDismiss: () -> Unit,
+    onConfirmRight: () -> Unit,
+) {
+    val vm: PlaceDetailViewModel = hiltViewModel()
+    val confirmRight by rememberUpdatedState(onConfirmRight)
+
+    LaunchedEffect(place?.placeId) {
+        if (place != null) vm.show(place) else vm.dismiss()
+    }
+
+    val uiState by vm.state.collectAsStateWithLifecycle()
+    val lite = uiState.lite
+    val details = uiState.details
+
+    // place 為空就不顯示
+    if (place == null || lite == null) return
+
+    val merged = lite.copy(
+        address          = details?.address           ?: lite.address,
+        photoUrl         = details?.photoUrl          ?: lite.photoUrl,
+        openingHours     = details?.openingHours      ?: lite.openingHours,
+        openNow          = details?.openNow           ?: lite.openNow,
+        openStatusText   = details?.openStatusText    ?: lite.openStatusText,
+        rating           = details?.rating            ?: lite.rating,
+        userRatingsTotal = details?.userRatingsTotal  ?: lite.userRatingsTotal,
+    )
+
+    PlaceDetailDialog(
+        place = merged,
+        mode = mode,
+        onDismiss = onDismiss,
+        onRemoveFromFavorite = { confirmRight() },
+        onAddToFavorite = { confirmRight() },
+        onAddToItinerary = { confirmRight() },
+        loadingDetails = uiState.loadingDetails,
+        error = uiState.error
+    )
+}
 
 @Composable
 private fun ColumnScope.Section(
@@ -44,22 +93,24 @@ private fun ColumnScope.Section(
 
 @Composable
 fun PlaceDetailDialog(
-    place: PlaceLite?,                       // ← 改用你現有的 PlaceLite
-    mode: PlaceActionMode = PlaceActionMode.ADD_TO_ITINERARY, // 預設用途：加入行程
+    place: PlaceLite?,  // null = 顯示 loading skeleton
+    mode: PlaceActionMode = PlaceActionMode.ADD_TO_ITINERARY,
     onDismiss: () -> Unit,
     onAddToItinerary: () -> Unit = {},
     onRemoveFromFavorite: () -> Unit = {},
-    onAddToFavorite: () -> Unit = {}
+    onAddToFavorite: () -> Unit = {},
+    loadingDetails: Boolean = false,   // ⬅️ 新增
+    error: String? = null
 ) {
+    // Loading skeleton
     if (place == null) {
-        // 與原版相同：loading 外觀
         Dialog(onDismissRequest = onDismiss) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
-                    .fillMaxHeight(0.9f)      // ✅ 可選：避免溢出
-                    .heightIn(max = 600.dp),  // 與上面互相保護
+                    .fillMaxHeight(0.9f)
+                    .heightIn(max = 600.dp),
                 shape = RoundedCornerShape(16.dp),
                 tonalElevation = 8.dp
             ) {
@@ -86,28 +137,41 @@ fun PlaceDetailDialog(
             tonalElevation = 8.dp
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 76.dp) // 給底部按鈕列空間
+                        .padding(bottom = 76.dp) // 給底部按鈕空間
                         .verticalScroll(rememberScrollState())
                 ) {
-                    // 1) 圖片：沒有就完全不佔位
-                    place.photoUrl?.let { url ->
-                        ImgSection(url = url)
-                    }
+                    // 1) 圖片：有才顯示
+                    place.photoUrl?.let { url -> ImgSection(url = url) }
 
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        // 2) 名稱（一定有）
+                    Column(Modifier.padding(20.dp)) {
                         Text(place.name, style = MaterialTheme.typography.titleLarge)
 
-                        // 3) 地址：只有有值才顯示，也只在顯示時加間距
+                        if (loadingDetails) {
+                            Spacer(Modifier.height(8.dp))
+                            androidx.compose.material3.LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        // error 提醒（可選）
+                        error?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+
+                        // 3) 地址
                         Section(visible = !place.address.isNullOrBlank(), topSpacing = 4.dp) {
                             Text(place.address.orEmpty(), style = MaterialTheme.typography.bodyLarge)
                         }
 
-                        // 4) 營業資訊：兩者有其一才顯示
+                        // 4) 營業資訊
                         Section(
                             visible = place.openingHours.isNotEmpty() || place.openStatusText != null,
                             topSpacing = 8.dp
@@ -118,7 +182,7 @@ fun PlaceDetailDialog(
                             )
                         }
 
-                        // 5) 評分：有 rating 才顯示
+                        // 5) 評分
                         Section(visible = place.rating != null, topSpacing = 8.dp) {
                             RatingSection(
                                 rating = place.rating ?: 0.0,
@@ -126,7 +190,7 @@ fun PlaceDetailDialog(
                             )
                         }
 
-                        // 6) 地圖：照舊（通常會想 always 顯示）
+                        // 6) 地圖（總是顯示）
                         Section(visible = true, topSpacing = 12.dp) {
                             MapSection(lat = place.lat, lng = place.lng)
                         }
