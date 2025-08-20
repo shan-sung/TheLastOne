@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -18,9 +21,13 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.Trip
@@ -75,30 +82,61 @@ private fun AgeBand.label(): String = when (this) {
 
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(activity.place.name, style = MaterialTheme.typography.titleMedium)
-            val time = listOfNotNull(activity.startTime, activity.endTime)
-                .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
-            Text(time, style = MaterialTheme.typography.bodyMedium)
-            val rating = activity.place.rating?.let {
-                String.format("★ %.1f（%d）", it, activity.place.userRatingsTotal)
-            }
-            if (rating != null) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左側文字內容
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(activity.place.name, style = MaterialTheme.typography.titleMedium)
+
+                val time = listOfNotNull(activity.startTime, activity.endTime)
+                    .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
+                Text(time, style = MaterialTheme.typography.bodyMedium)
+
+                val rating = activity.place.rating?.let {
+                    String.format("★ %.1f（%d）", it, activity.place.userRatingsTotal ?: 0)
+                }
+                if (rating != null) {
+                    Text(
+                        rating,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 Text(
-                    rating,
+                    activity.place.address.orEmpty(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                activity.place.address.orEmpty(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            // 右側圖片
+            if (!activity.place.photoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = activity.place.photoUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 fun LazyListScope.dayTabsAndActivities(
