@@ -177,9 +177,9 @@ class FakeTripRepository @Inject constructor(
                 totalBudget = 15000,
                 startDate = startStr,
                 endDate = endStr,
-                activityStart = activityStart,      // ✅
-                activityEnd = activityEnd,          // ✅
-                avgAge = avgAge,                    // ✅
+                activityStart = activityStart,
+                activityEnd = activityEnd,
+                avgAge = avgAge,
                 transportPreferences = listOf("Walk", "MRT"),
                 useGmapsRating = true,
                 styles = listOf("Foodie", "Relax"),
@@ -188,14 +188,61 @@ class FakeTripRepository @Inject constructor(
             )
         }
 
+        // ---- 測試資料 ----
+        // 1. demo-user 建立 → 自己是 owner
         val t1 = mkTrip("台北 2 日小旅行", today.plusDays(1), 2)
-        val t2 = mkTrip("台中美食行", today.plusDays(10), 3)
-        val t3 = mkTrip("朋友邀請示例", today.plusDays(5), 2, createdBy = "someone-else")
+
+        // 2. demo-user 建立，但有多個成員 → 仍然 owner，可看到 FAB + Chat
+        val t2 = mkTrip(
+            "台中美食行",
+            today.plusDays(10),
+            3,
+            members = listOf(
+                User(id = "friend-1", email = "a@b.com", name = "Alice"),
+                User(id = "friend-2", email = "b@c.com", name = "Bob")
+            )
+        )
+
+        // 3. friend-1 建立，demo-user 是成員 → 我是 member，有 Chat 沒 FAB
+        val t3 = mkTrip(
+            "高雄探索",
+            today.plusDays(5),
+            2,
+            createdBy = "friend-1",
+            members = listOf(
+                User(id = "demo-user", email = "demo@example.com", name = "Demo User"),
+                User(id = "friend-2", email = "b@c.com", name = "Bob")
+            )
+        )
+
+        // 4. someone-else 建立，不包含 demo-user → outsider，只能預覽
+        val t4 = mkTrip(
+            "朋友邀請示例",
+            today.plusDays(7),
+            2,
+            createdBy = "someone-else",
+            members = listOf(User(id = "friend-1", email = "a@b.com", name = "Alice"))
+        )
+
+        // 5. friend-2 建立，成員包含 demo-user 與 friend-1 → 我仍是 member
+        val t5 = mkTrip(
+            "花蓮行程",
+            today.plusDays(15),
+            4,
+            createdBy = "friend-2",
+            members = listOf(
+                User(id = "demo-user", email = "demo@example.com", name = "Demo User"),
+                User(id = "friend-1", email = "a@b.com", name = "Alice")
+            )
+        )
 
         trips[t1.id] = t1
         trips[t2.id] = t2
         trips[t3.id] = t3
+        trips[t4.id] = t4
+        trips[t5.id] = t5
     }
+
 
     // ---------- helpers ----------
     private fun enumerateDates(start: String, end: String): List<String> {

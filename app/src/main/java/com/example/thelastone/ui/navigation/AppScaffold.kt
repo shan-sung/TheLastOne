@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,6 +59,7 @@ import com.example.thelastone.ui.screens.form.CreateTripFormScreen
 import com.example.thelastone.ui.screens.myTrips.MyTripsScreen
 import com.example.thelastone.utils.encodePlaceArg
 import com.example.thelastone.vm.RootViewModel
+import com.example.thelastone.vm.TripDetailViewModel
 import com.example.thelastone.vm.TripFormViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,16 +84,23 @@ fun AppScaffold() {
 fun MainScaffold(nav: NavHostController) {
     val backStack by nav.currentBackStackEntryAsState()
     val currentDest = backStack?.destination
-
-    val isTopLevel = remember(currentDest) {
-        TOP_LEVEL_DESTINATIONS.any { it.route == currentDest?.route }
-    }
+    val isTopLevel = remember(currentDest) { TOP_LEVEL_DESTINATIONS.any { it.route == currentDest?.route } }
     val scroll = pinnedScrollBehavior()
+
+    // ✅ 直接從 TripDetailViewModel 讀取 perms（當前 route 是 Detail 時）
+    val showTripChat: Boolean = if (currentDest?.route == TripRoutes.Detail) {
+        // 取得當前 Detail 的 BackStackEntry，再用它來拿同一顆 VM
+        val detailEntry = remember(backStack) { nav.getBackStackEntry(TripRoutes.Detail) }
+        val detailVm: TripDetailViewModel = hiltViewModel(detailEntry)
+        val perms by detailVm.perms.collectAsState()
+        perms?.canChat == true
+    } else false
+
 
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            if (currentDest?.route !in setOf( MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick, MiscRoutes.SearchUsers )) {
+            if (currentDest?.route !in setOf(MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick, MiscRoutes.SearchUsers)) {
                 AppTopBar(
                     destination = currentDest,
                     isTopLevel = isTopLevel,
@@ -104,6 +113,7 @@ fun MainScaffold(nav: NavHostController) {
                         nav.navigate(TripRoutes.chat(tripId))
                     },
                     onOpenTripMore = { /* TODO */ },
+                    showTripChat = showTripChat,   // ← 用新的布林
                     scrollBehavior = scroll
                 )
             }
@@ -128,6 +138,7 @@ fun MainScaffold(nav: NavHostController) {
 
     BackHandler(enabled = !isTopLevel) { nav.navigateUp() }
 }
+
 
 @Composable
 private fun MainNavHost(
@@ -182,8 +193,13 @@ private fun MainNavHost(
             route = TripRoutes.Detail,
             arguments = listOf(navArgument("tripId") { type = NavType.StringType })
         ) { entry ->
+            // 讓 VM 在這裡建立一次，並監聽 perms
+            val vm: TripDetailViewModel = hiltViewModel(entry)
+            val perms by vm.perms.collectAsState()
+
             TripDetailScreen(
                 padding = padding,
+                // 不要在 TripDetailScreen 裡再建立 NavController 或處理 canChat
                 onAddActivity = { id -> nav.navigate(TripRoutes.pickPlace(id)) },
                 onEditActivity = { id, dayIndex, activityIndex, _ ->
                     nav.navigate(TripRoutes.editActivity(id, dayIndex, activityIndex))
@@ -293,10 +309,10 @@ private fun AppTopBar(
     onEditProfile: () -> Unit,
     onOpenTripChat: () -> Unit,
     onOpenTripMore: () -> Unit,
+    showTripChat: Boolean,                 // ← 新增參數
     scrollBehavior: TopAppBarScrollBehavior
 ) {
     val route = destination?.route ?: ""
-
     val title = when {
         route == Root.Explore.route      -> "Explore"
         route == Root.MyTrips.route      -> "My Trips"
@@ -306,8 +322,8 @@ private fun AppTopBar(
         route == TripRoutes.Create       -> "Create Trip"
         route == TripRoutes.Preview      -> "Preview Trip"
         route == TripRoutes.Detail       -> "Trip Detail"
-        route == TripRoutes.PickPlace -> "Pick Place"
-        route == TripRoutes.AddActivity -> "Add Activity"
+        route == TripRoutes.PickPlace    -> "Pick Place"
+        route == TripRoutes.AddActivity  -> "Add Activity"
         route == TripRoutes.EditActivity -> "Edit Activity"
         route == TripRoutes.Chat         -> "Trip Chat"
         route == MiscRoutes.SearchPlaces -> "Search Places"
@@ -343,9 +359,13 @@ private fun AppTopBar(
                     }
                 }
                 TripRoutes.Detail -> {
-                    IconButton(onClick = onOpenTripChat) {
-                        Icon(Icons.Filled.Message, contentDescription = "Trip chat")
+                    // 只有 owner/member 才顯示 Chat
+                    if (showTripChat) {
+                        IconButton(onClick = onOpenTripChat) {
+                            Icon(Icons.Filled.Message, contentDescription = "Trip chat")
+                        }
                     }
+                    // More 一律保留（你說先留著）
                     IconButton(onClick = onOpenTripMore) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "More")
                     }
@@ -355,6 +375,7 @@ private fun AppTopBar(
         scrollBehavior = scrollBehavior
     )
 }
+
 
 private val NO_BOTTOM_BAR_ROUTES = setOf(
     TripRoutes.Create,

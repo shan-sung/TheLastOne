@@ -44,7 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.thelastone.data.model.Activity
-import com.example.thelastone.ui.navigation.TripRoutes
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
 import com.example.thelastone.vm.TripDetailUiState
@@ -59,6 +58,7 @@ fun TripDetailScreen(
     onDeleteActivity: (tripId: String, dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _,_,_,_ -> }
 ) {
     val state by viewModel.state.collectAsState()
+    val perms = viewModel.perms.collectAsState().value
     val context = LocalContext.current
 
     when (val s = state) {
@@ -66,7 +66,7 @@ fun TripDetailScreen(
         is TripDetailUiState.Error -> ErrorState(
             modifier = Modifier.padding(padding),
             message = s.message,
-            onRetry = viewModel::reload   // ← 改這裡
+            onRetry = viewModel::reload
         )
         is TripDetailUiState.Data -> {
             val trip = s.trip
@@ -89,24 +89,30 @@ fun TripDetailScreen(
                             selected = selected,
                             onSelect = { selected = it },
                             onActivityClick = { dayIdx, actIdx, act ->
-                                sheet = SheetData(dayIdx, actIdx, act) // ← 打開 sheet
-                            }                        )
+                                sheet = SheetData(dayIdx, actIdx, act)
+                            }
+                        )
                         item { Spacer(Modifier.height(80.dp)) }
                     }
                 }
-                FloatingActionButton(
-                    onClick = { onAddActivity(trip.id) },   // ← 改這裡
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp)
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
+
+                // 只有建立者顯示 FAB
+                if (perms?.canEditTrip == true) {
+                    FloatingActionButton(
+                        onClick = { onAddActivity(trip.id) },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) { Icon(Icons.Filled.Add, null) }
                 }
             }
-            if (sheet != null) {
-                val data = sheet!!
+
+            // 活動細節 Sheet：依權限切換唯讀/可編輯
+            sheet?.let { data ->
                 ActivityBottomSheet(
                     activity = data.activity,
+                    readOnly = perms?.readOnly == true,            // ← 關鍵
+                    canEdit = perms?.canEditTrip == true,          // 只給建立者
                     onDismiss = { sheet = null },
                     onEdit = {
                         onEditActivity(trip.id, data.dayIndex, data.activityIndex, data.activity)
@@ -116,8 +122,8 @@ fun TripDetailScreen(
                         viewModel.removeActivity(data.dayIndex, data.activityIndex)
                         sheet = null
                     },
-                    onGoMaps = { openInMaps(context, data.activity) },                    onStart = {
-                        // 這裡依你的需求做事：例如導到導航頁、或更新狀態
+                    onGoMaps = { openInMaps(context, data.activity) },
+                    onStart = {
                         // TODO: start flow
                         sheet = null
                     }
@@ -127,10 +133,13 @@ fun TripDetailScreen(
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActivityBottomSheet(
     activity: Activity,
+    readOnly: Boolean,          // ← 新增：非 owner/member = true
+    canEdit: Boolean,           // ← 新增：只有 owner = true
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -140,46 +149,34 @@ private fun ActivityBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var menuOpen by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header：標題 + 更多選單
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(activity.place.name, style = MaterialTheme.typography.titleLarge)
+
+                // 仍保留 more-vert（你說要先留著），但唯讀時不顯示編輯/刪除
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("編輯") },
-                            onClick = { menuOpen = false; onEdit() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("刪除") },
-                            onClick = { menuOpen = false; onDelete() }
-                        )
+                        if (canEdit) {
+                            DropdownMenuItem(text = { Text("編輯") }, onClick = { menuOpen = false; onEdit() })
+                            DropdownMenuItem(text = { Text("刪除") }, onClick = { menuOpen = false; onDelete() })
+                        } else {
+                            // 你想放別的唯讀功能可在這裡加
+                        }
                     }
                 }
             }
-            if (!activity.place.address.isNullOrBlank()) {
-                Text(
-                    activity.place.address!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+            activity.place.address?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            // 內容區：時間、評分、地址
+
             val time = listOfNotNull(activity.startTime, activity.endTime)
                 .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
             Text(time, style = MaterialTheme.typography.bodyMedium)
@@ -191,26 +188,19 @@ private fun ActivityBottomSheet(
 
             Spacer(Modifier.height(8.dp))
 
-            // 底部兩顆按鈕（並排）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onGoMaps,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Go to Maps") }
-
-                Button(
-                    onClick = onStart,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Start") }
+            // 唯讀時不顯示操作按鈕
+            if (!readOnly) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onGoMaps, modifier = Modifier.weight(1f)) { Text("Go to Maps") }
+                    Button(onClick = onStart, modifier = Modifier.weight(1f)) { Text("Start") }
+                }
             }
 
             Spacer(Modifier.height(8.dp))
         }
     }
 }
+
 
 private fun openInMaps(context: Context, activity: Activity) {
     val lat = activity.place.lat
