@@ -5,17 +5,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.thelastone.data.model.User
 import com.example.thelastone.ui.screens.comp.Avatar
+import com.example.thelastone.vm.FriendStatsViewModel
 import com.example.thelastone.vm.FriendsViewModel
 import com.example.thelastone.vm.IncomingItem
 
@@ -107,8 +109,9 @@ fun FriendsScreen(padding: PaddingValues, vm: FriendsViewModel = hiltViewModel()
     // ===== Dialogs =====
 
     // 1) 別人寄來的邀請（等待回覆）
+    // 1) 別人寄來的邀請（等待回覆）— 顯示接受/拒絕按鈕
     previewIncoming?.let { item ->
-        IncomingRequestDialog(
+        FriendInfoDialog(
             user = item.fromUser,
             onAccept = {
                 vm.accept(item.request.id)
@@ -122,7 +125,7 @@ fun FriendsScreen(padding: PaddingValues, vm: FriendsViewModel = hiltViewModel()
         )
     }
 
-    // 2) 已是好友
+// 2) 已是好友 — 只有關閉按鈕
     previewFriend?.let { user ->
         FriendInfoDialog(
             user = user,
@@ -154,103 +157,138 @@ private fun IncomingRow(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun M3Dialog(
-    onDismissRequest: () -> Unit,
-    tonalElevation: Dp = 6.dp,
-    headline: @Composable () -> Unit,
-    supportingText: (@Composable () -> Unit)? = null,
-    actions: @Composable RowScope.() -> Unit
+fun FriendInfoDialog(
+    user: User,
+    onDismiss: () -> Unit,
+    // ↓↓↓ 新增：可選的動作（有帶就顯示）
+    onAccept: (() -> Unit)? = null,
+    onReject: (() -> Unit)? = null,
+    statsVm: FriendStatsViewModel = hiltViewModel()
 ) {
-    BasicAlertDialog(onDismissRequest = onDismissRequest) {
+    val stats by statsVm.stats.collectAsState()
+    val loading by statsVm.loading.collectAsState()
+    val error by statsVm.error.collectAsState()
+
+    LaunchedEffect(user.id) {
+        statsVm.load(user.id)
+    }
+
+    BasicAlertDialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = tonalElevation
+            tonalElevation = 6.dp
         ) {
             Column(Modifier.padding(24.dp)) {
                 // 標題區
-                headline()
-
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                if (supportingText != null) {
-                    Spacer(Modifier.height(12.dp))
-                    supportingText()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(imageUrl = user.avatarUrl, size = 56.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(user.name, style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            user.email,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                // 內容區
+                when {
+                    loading -> {
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    error != null -> {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "載入統計失敗：$error",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    // ---------- 在 FriendInfoDialog() 內，替換 stats != null 區塊 ----------
+                    stats != null -> {
+                        Surface(
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                StatCell(
+                                    value = stats!!.created,
+                                    label = "Created",
+                                    modifier = Modifier.weight(1f)
+                                )
 
-                // 動作列：靠右排列（次要在前、主要在後）
+                                VerticalDivider(
+                                    modifier = Modifier
+                                        .height(36.dp)
+                                        .padding(horizontal = 8.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
+
+                                StatCell(
+                                    value = stats!!.participating,
+                                    label = "Participating",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 動作列
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    actions()
+                    // 若為「等待回覆」情境，顯示 拒絕/同意
+                    if (onReject != null && onAccept != null) {
+                        TextButton(onClick = onReject) { Text("拒絕") }
+                        Spacer(Modifier.width(8.dp))
+                        FilledTonalButton(onClick = onAccept) { Text("同意") }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    // 通用的關閉
+                    TextButton(onClick = onDismiss) { Text("關閉") }
                 }
             }
         }
     }
 }
 
+// ---------- 請放在同檔案底部或適合的位置 ----------
 @Composable
-private fun IncomingRequestDialog(
-    user: User,
-    onAccept: () -> Unit,
-    onReject: () -> Unit,
-    onDismiss: () -> Unit
+private fun StatCell(
+    value: Int,
+    label: String,
+    modifier: Modifier = Modifier
 ) {
-    M3Dialog(
-        onDismissRequest = onDismiss,
-        headline = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(imageUrl = user.avatarUrl, size = 56.dp)
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(user.name, style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "${user.friends.size} friends",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        supportingText = {
-            Text("向你發出好友邀請", style = MaterialTheme.typography.bodyMedium)
-        },
-        actions = {
-            TextButton(onClick = onReject) { Text("拒絕") }
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(onClick = onAccept) { Text("同意") }
-        }
-    )
-}
-
-@Composable
-private fun FriendInfoDialog(
-    user: User,
-    onDismiss: () -> Unit
-) {
-    M3Dialog(
-        onDismissRequest = onDismiss,
-        headline = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(imageUrl = user.avatarUrl, size = 56.dp)
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(user.name, style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "${user.friends.size} friends",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        supportingText = null, // 這個不用內文就不放
-        actions = {
-            TextButton(onClick = onDismiss) { Text("關閉") }
-        }
-    )
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            value.toString(),
+            style = MaterialTheme.typography.headlineSmall, // 粗一點、接近示意圖的大字
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }

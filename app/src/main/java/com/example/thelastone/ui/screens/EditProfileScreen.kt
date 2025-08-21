@@ -32,43 +32,47 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavHostController
 import com.example.thelastone.ui.screens.comp.Avatar
+import com.example.thelastone.vm.EditProfileEvent
 import com.example.thelastone.vm.EditProfileViewModel
-import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditProfileScreen(padding: PaddingValues, nav: NavHostController? = null) {
+fun EditProfileScreen(
+    padding: PaddingValues,
+    onCancel: () -> Unit,
+    onSaved: () -> Unit
+) {
     val vm: EditProfileViewModel = hiltViewModel()
     val ui by vm.state.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
-    // Android 官方 Photo Picker
-    val photoPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            vm.onAvatarPicked(uri.toString())
+    // 收一次性事件
+    LaunchedEffect(Unit) {
+        vm.events.collect { e ->
+            when (e) {
+                is EditProfileEvent.Saved -> {
+                    // 讓外層決定導航與結果傳遞
+                    onSaved()
+                }
+                is EditProfileEvent.Error -> {
+                    snackbarHostState.showSnackbar(e.message)
+                }
+            }
         }
     }
 
-    // 錯誤 SnackBar
-    LaunchedEffect(ui.error) {
-        if (ui.error != null) {
-            scope.launch {
-                snackbarHostState.showSnackbar(ui.error!!)
-                vm.consumeError()
-            }
-        }
+    // Android Photo Picker 同原本...
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) vm.onAvatarPicked(uri.toString())
     }
 
     Scaffold(
@@ -77,7 +81,7 @@ fun EditProfileScreen(padding: PaddingValues, nav: NavHostController? = null) {
             .padding(padding),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            Surface(tonalElevation = 3.dp) {
+            Surface {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -86,17 +90,12 @@ fun EditProfileScreen(padding: PaddingValues, nav: NavHostController? = null) {
                 ) {
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
-                        onClick = { nav?.navigateUp() }
+                        onClick = onCancel
                     ) { Text("Cancel") }
 
                     Button(
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            vm.save {
-                                scope.launch { snackbarHostState.showSnackbar("Profile updated") }
-                                nav?.navigateUp()
-                            }
-                        },
+                        onClick = { vm.save() },   // 只叫 VM，不直接導航
                         enabled = !ui.saving
                     ) {
                         if (ui.saving) {

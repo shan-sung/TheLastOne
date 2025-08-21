@@ -5,6 +5,11 @@ import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
 import kotlinx.coroutines.flow.Flow
 
+data class TripStats(
+    val created: Int,
+    val participating: Int
+)
+
 // CHANGED: TripRepository.kt
 interface TripRepository {
     suspend fun createTrip(form: TripForm): Trip
@@ -25,5 +30,7 @@ interface TripRepository {
     suspend fun removeActivity(tripId: String, dayIndex: Int, activityIndex: Int)
     suspend fun deleteTrip(tripId: String)
     suspend fun addMembers(tripId: String, userIds: List<String>)
+
+    suspend fun getTripStatsFor(userId: String): TripStats
 }
 

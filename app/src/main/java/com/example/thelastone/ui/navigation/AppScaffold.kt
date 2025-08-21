@@ -321,7 +321,20 @@ private fun MainNavHost(
                 onBack = { nav.navigateUp() } // ← 加上 onBack 讓箭頭直接返回
             )
         }
-        composable(MiscRoutes.EditProfile)  { EditProfileScreen(padding) }
+        composable(MiscRoutes.EditProfile) {
+            EditProfileScreen(
+                padding = padding,
+                onCancel = { nav.popBackStack() },
+                onSaved = {
+                    // 回傳結果給上一頁（Profile）
+                    nav.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("profile_updated", true)
+                    // 返回
+                    nav.popBackStack()
+                }
+            )
+        }
     }
 }
 

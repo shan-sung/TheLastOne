@@ -93,9 +93,6 @@ fun ProfileScreen(padding: PaddingValues) {
                 }
             }
         }
-
-        // 可加：帳號與安全、通知設定等分組
-        // item { ... }
     }
 }
 

@@ -9,6 +9,7 @@ import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.model.TripVisibility
 import com.example.thelastone.data.model.User
 import com.example.thelastone.data.repo.TripRepository
+import com.example.thelastone.data.repo.TripStats
 import com.example.thelastone.data.repo.UserRepository
 import com.example.thelastone.di.SessionManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -186,6 +187,15 @@ class FakeTripRepository @Inject constructor(
         trips[tripId] = updated
         emitAll() // ✅ 推播狀態
     }
+
+    override suspend fun getTripStatsFor(userId: String): TripStats {
+        delay(100)
+        val all = trips.values
+        val created = all.count { it.createdBy == userId }
+        val participating = all.count { it.createdBy != userId && it.members.any { m -> m.id == userId } }
+        return TripStats(created = created, participating = participating)
+    }
+
 
     private fun seedDemoTrips() {
         val today = LocalDate.now()
