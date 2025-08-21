@@ -222,21 +222,34 @@ private fun ActivityBottomSheet(
 
             Spacer(Modifier.height(12.dp))
 
-            val statusText = remember(activity.place.openStatusText, activity.place.openNow, activity.place.openingHours) {
-                activity.place.openStatusText
-                    ?: buildOpenStatusTextFallback(activity.place.openNow, activity.place.openingHours)
+            val hasHours =
+                !activity.place.openingHours.isNullOrEmpty() ||   // list 非空才算有
+                        !activity.place.openStatusText.isNullOrBlank() || // 文字非空才算有
+                        (activity.place.openNow != null)                  // 有給到 openNow 才算有
+
+
+            if (hasHours) {
+                Spacer(Modifier.height(12.dp))
+
+                // 有資料才計算顯示文字：若沒有 openStatusText，才用 fallback
+                val statusText = activity.place.openStatusText
+                    ?: buildOpenStatusTextFallback(
+                        activity.place.openNow,
+                        activity.place.openingHours
+                    )
+
+                OpeningHoursSection(
+                    hours = activity.place.openingHours,
+                    statusText = statusText
+                )
             }
 
-            OpeningHoursSection(
-                hours = activity.place.openingHours,
-                statusText = statusText
-            )
-
-
+            // ── 評分（有 rating 才顯示） ──
             activity.place.rating?.let { r ->
+                Spacer(Modifier.height(12.dp))
                 RatingSection(
                     rating = r,
-                    totalReviews = activity.place.userRatingsTotal ?: 0   // ← ?: 0
+                    totalReviews = activity.place.userRatingsTotal ?: 0
                 )
             }
 

@@ -32,3 +32,14 @@ data class Activity(
     val endTime: String? = null,    // "11:30"
     val note: String? = null
 )
+
+// 放在同檔最上方或 utils 檔都可以
+fun Trip.coverPhotoUrl(): String? {
+    for (day in days) {
+        for (act in day.activities) {
+            val url = act.place.photoUrl
+            if (!url.isNullOrBlank()) return url
+        }
+    }
+    return null
+}

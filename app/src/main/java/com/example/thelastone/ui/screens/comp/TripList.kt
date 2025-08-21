@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.thelastone.data.model.Trip
+import com.example.thelastone.data.model.coverPhotoUrl
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -40,12 +42,20 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
     ) {
         items(
             items = trips,
-            key = { it.id } // 穩定 key，避免重組閃爍
+            key = { it.id }
         ) { trip ->
-            TripCard(trip = trip, onClick = { openTrip(trip.id) })
+            // 依 Trip 內容記住封面網址，避免每次重組重算
+            val coverUrl = remember(trip) { trip.coverPhotoUrl() }
+
+            TripCard(
+                trip = trip,
+                imageUrl = coverUrl,          // ← 傳入找到的第一張照片
+                onClick = { openTrip(trip.id) }
+            )
         }
     }
 }
+
 
 @Composable
 fun TripCard(

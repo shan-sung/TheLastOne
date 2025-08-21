@@ -1,7 +1,9 @@
 package com.example.thelastone.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,19 +56,31 @@ fun PickPlaceScreen(
 
     Column(modifier = Modifier.fillMaxSize().padding(padding)) {
         // 搜尋欄（點擊跳搜尋頁）
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            readOnly = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .clickable { onSearchClick() },      // ← 讓整塊可點
-            placeholder = { Text("搜尋景點、地址…") },
-            trailingIcon = {
-                IconButton(onClick = onSearchClick) { Icon(Icons.Filled.Search, null) }
-            }
-        )
+        // 搜尋欄（整塊可點 → 進入搜尋頁）
+        Box(Modifier.fillMaxWidth().padding(16.dp)) {
+            OutlinedTextField(
+                value = "",
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("搜尋景點、地址…") },
+                trailingIcon = {
+                    IconButton(onClick = onSearchClick) { Icon(Icons.Filled.Search, null) }
+                }
+            )
+
+            // 透明點擊層：覆蓋整個 TextField
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clickable(
+                        // 不要出現額外 ripple；也避免巢狀點擊衝突
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { onSearchClick() }
+            )
+        }
+
 
 
         TabRow(selectedTabIndex = selected) {
