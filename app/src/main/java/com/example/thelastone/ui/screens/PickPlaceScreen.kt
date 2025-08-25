@@ -129,14 +129,22 @@ private fun PopularTab(
 ) {
     val ui by vm.state.collectAsState()
     when {
-        ui.nearbyLoading -> LoadingState(Modifier.fillMaxSize(), "載入中…")
-        ui.nearbyError != null -> ErrorState(Modifier.fillMaxSize(), ui.nearbyError!!, onRetry = { /* TODO */ })
+        ui.spotsLoading -> LoadingState(Modifier.fillMaxSize(), "載入中…")
+        ui.spotsError != null -> ErrorState(
+            Modifier.fillMaxSize(),
+            ui.spotsError!!,
+            onRetry = { vm.loadSpots() }   // ← 直接重載推薦清單
+        )
+        ui.spots.isEmpty() -> EmptyState(
+            Modifier.fillMaxSize(),
+            "目前找不到推薦景點"
+        )
         else -> {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(ui.nearby, key = { it.placeId }) { p ->
+                items(ui.spots, key = { it.placeId }) { p ->
                     PlaceCard(
                         place = p,
                         onClick = { onCardClick(p) },
@@ -148,6 +156,7 @@ private fun PopularTab(
         }
     }
 }
+
 
 @Composable
 private fun SavedTab(

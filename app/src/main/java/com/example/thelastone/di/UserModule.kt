@@ -2,7 +2,10 @@
 package com.example.thelastone.di
 
 import com.example.thelastone.data.local.SavedPlaceDao
+import com.example.thelastone.data.repo.DefaultSpotRepository
+import com.example.thelastone.data.repo.PlacesRepository
 import com.example.thelastone.data.repo.SavedRepository
+import com.example.thelastone.data.repo.SpotRepository
 import com.example.thelastone.data.repo.impl.fake.FakeUserRepository
 import com.example.thelastone.data.repo.UserRepository
 import com.example.thelastone.data.repo.impl.SavedRepositoryImpl
@@ -33,4 +36,11 @@ object RepoModule {
     fun provideSavedRepository(
         dao: SavedPlaceDao
     ): SavedRepository = SavedRepositoryImpl(dao)
+
+    // ★ NEW: SpotRepository 綁定（目前用 DefaultSpotRepository 包 PlacesRepository）
+    @Provides @Singleton
+    fun provideSpotRepository(
+        placesRepo: PlacesRepository
+    ): SpotRepository = DefaultSpotRepository(placesRepo)
 }
+

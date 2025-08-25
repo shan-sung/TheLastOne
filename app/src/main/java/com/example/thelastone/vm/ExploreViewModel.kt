@@ -2,50 +2,52 @@ package com.example.thelastone.vm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.PlaceLite
+import com.example.thelastone.data.model.Trip
+import com.example.thelastone.data.repo.SpotRepository
 import com.example.thelastone.data.repo.TripRepository
-import com.example.thelastone.data.repo.PlacesRepository
-import com.example.thelastone.data.repo.RankPreference
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import javax.inject.Inject
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.scan
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-sealed interface ExploreMode {
-    data object Nearby : ExploreMode
-    data object Popular : ExploreMode
-}
+import javax.inject.Inject
 
 data class ExploreUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
+
+    // Trips
     val popularTrips: List<Trip> = emptyList(),
     val isRefreshing: Boolean = false,
 
-    // Nearby
-    val nearby: List<PlaceLite> = emptyList(),
-    val nearbyError: String? = null,
-    val nearbyLoading: Boolean = false,
-
-    val popularSpots: List<PlaceLite> = emptyList(),
-    val popularSpotsError: String? = null,
-    val popularSpotsLoading: Boolean = false,
-
-    val mode: ExploreMode = ExploreMode.Popular
+    // Spots（只有 Popular/Recommended）
+    val spots: List<PlaceLite> = emptyList(),
+    val spotsLoading: Boolean = false,
+    val spotsError: String? = null
 )
+
 
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
-    private val repo: TripRepository,
-    private val placesRepo: PlacesRepository
+    private val tripRepo: TripRepository,
+    private val spotRepo: SpotRepository
 ) : ViewModel() {
 
     private val refresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     private fun popularTripsFlow(): Flow<List<Trip>> =
-        repo.observePublicTrips().map { list -> list.sortedBy { it.startDate } }
+        tripRepo.observePublicTrips().map { list -> list.sortedBy { it.startDate } }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     private val popularResource: Flow<Result<List<Trip>>> =
         refresh.onStart { emit(Unit) }
@@ -55,11 +57,11 @@ class ExploreViewModel @Inject constructor(
                     .catch { e -> emit(Result.failure(e)) }
             }
 
-    // ---- State ----
     private val _state = MutableStateFlow(ExploreUiState())
     val state: StateFlow<ExploreUiState> = _state.asStateFlow()
 
     init {
+        // 1) Trips
         viewModelScope.launch {
             popularResource.scan(ExploreUiState()) { prev, result ->
                 if (result.isSuccess) {
@@ -78,79 +80,28 @@ class ExploreViewModel @Inject constructor(
                 }
             }.collect { _state.value = it }
         }
+        // 2) Spots
+        loadSpots()
     }
 
     fun refresh() {
         viewModelScope.launch { refresh.emit(Unit) }
+        loadSpots()
     }
     fun retry() = refresh()
 
-    fun loadNearby(
-        lat: Double, lng: Double,
-        radiusMeters: Int = 6000,
-        onlyOpen: Boolean = false
-    ) {
+    fun loadSpots(userId: String? = null, limit: Int = 30) {
         viewModelScope.launch {
-            _state.update { it.copy(nearbyLoading = true, nearbyError = null) }
-            runCatching {
-                placesRepo.searchNearby(
-                    lat = lat, lng = lng, radiusMeters = radiusMeters,
-                    // ★ 放寬型別，避免抓不到
-                    includedTypes = listOf("tourist_attraction", "point_of_interest"),
-                    rankPreference = RankPreference.POPULARITY,
-                    openNow = if (onlyOpen) true else null,
-                    maxResultCount = 30
-                )
-            }.onSuccess { list ->
-                _state.update { it.copy(nearby = list, nearbyLoading = false) }
-                if (list.isEmpty()) {
-                    _state.update { it.copy(mode = ExploreMode.Popular) }
-                    loadPopularSpotsIfNeeded()
+            _state.update { it.copy(spotsLoading = true, spotsError = null) }
+            runCatching { spotRepo.getRecommendedSpots(userId, limit) }
+                .onSuccess { list ->
+                    _state.update { it.copy(spots = list, spotsLoading = false) }
                 }
-            }.onFailure { e ->
-                _state.update {
-                    it.copy(nearbyError = e.message ?: "附近景點載入失敗", nearbyLoading = false)
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(spotsError = e.message ?: "熱門景點載入失敗", spotsLoading = false)
+                    }
                 }
-                _state.update { it.copy(mode = ExploreMode.Popular) }
-                loadPopularSpotsIfNeeded()
-            }
-        }
-    }
-    fun onLocationPermissionResult(granted: Boolean) {
-        if (granted) {
-            // 交由 UI 端在拿到座標後呼叫 loadNearby()（你已經這樣做）
-            _state.update { it.copy(mode = ExploreMode.Nearby) }
-        } else {
-            // 立刻載入 Popular Spots 當作 fallback
-            loadPopularSpotsIfNeeded()
-            _state.update { it.copy(mode = ExploreMode.Popular) }
-        }
-    }
-
-    fun loadPopularSpotsIfNeeded() {
-        val s = _state.value
-        if (s.popularSpots.isNotEmpty() || s.popularSpotsLoading) return
-        loadPopularSpots()
-    }
-    fun loadPopularSpots(
-        query: String = "top tourist attractions", // 或 "熱門景點"
-    ) {
-        viewModelScope.launch {
-            _state.update { it.copy(popularSpotsLoading = true, popularSpotsError = null) }
-            runCatching {
-                placesRepo.searchText(
-                    query = query,
-                    lat = null, lng = null,
-                    radiusMeters = null,
-                    openNow = null
-                )
-            }.onSuccess { list ->
-                _state.update { it.copy(popularSpots = list, popularSpotsLoading = false) }
-            }.onFailure { e ->
-                _state.update {
-                    it.copy(popularSpotsError = e.message ?: "熱門景點載入失敗", popularSpotsLoading = false)
-                }
-            }
         }
     }
 }
