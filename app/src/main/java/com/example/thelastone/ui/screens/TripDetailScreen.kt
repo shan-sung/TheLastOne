@@ -1,5 +1,6 @@
 package com.example.thelastone.ui.screens
 
+// TripDetailScreen.kt（同一檔內，加入 import 與狀態觀察）
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,11 +49,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.thelastone.data.model.Activity
+import com.example.thelastone.ui.AlternativesDialog
+import com.example.thelastone.ui.StartPreviewDialog
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.OpeningHoursSection
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.RatingSection
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
 import com.example.thelastone.utils.buildOpenStatusTextFallback
+import com.example.thelastone.utils.openNavigation
+import com.example.thelastone.vm.StartFlowViewModel
+import com.example.thelastone.vm.StartUiState
 import com.example.thelastone.vm.TripDetailUiState
 import com.example.thelastone.vm.TripDetailViewModel
 
@@ -59,12 +66,14 @@ import com.example.thelastone.vm.TripDetailViewModel
 fun TripDetailScreen(
     padding: PaddingValues,
     viewModel: TripDetailViewModel = hiltViewModel(),
+    startVm: StartFlowViewModel = hiltViewModel(), // ← 新增
     onAddActivity: (tripId: String) -> Unit = {},
     onEditActivity: (tripId: String, dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _,_,_,_ -> },
     onDeleteActivity: (tripId: String, dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _,_,_,_ -> }
 ) {
     val state by viewModel.state.collectAsState()
     val perms = viewModel.perms.collectAsState().value
+    val startState by startVm.ui.collectAsState() // ← 新增
     val context = LocalContext.current
 
     when (val s = state) {
@@ -102,7 +111,6 @@ fun TripDetailScreen(
                     }
                 }
 
-                // 只有建立者顯示 FAB
                 if (perms?.canEditTrip == true) {
                     FloatingActionButton(
                         onClick = { onAddActivity(trip.id) },
@@ -113,12 +121,12 @@ fun TripDetailScreen(
                 }
             }
 
-            // 活動細節 Sheet：依權限切換唯讀/可編輯
+            // ── ActivityBottomSheet：把 onStart 接到 StartFlowViewModel ──
             sheet?.let { data ->
                 ActivityBottomSheet(
                     activity = data.activity,
-                    readOnly = perms?.readOnly == true,            // ← 關鍵
-                    canEdit = perms?.canEditTrip == true,          // 只給建立者
+                    readOnly = perms?.readOnly == true,
+                    canEdit = perms?.canEditTrip == true,
                     onDismiss = { sheet = null },
                     onEdit = {
                         onEditActivity(trip.id, data.dayIndex, data.activityIndex, data.activity)
@@ -130,14 +138,90 @@ fun TripDetailScreen(
                     },
                     onGoMaps = { openInMaps(context, data.activity) },
                     onStart = {
-                        // TODO: start flow
-                        sheet = null
+                        // 啟動 Start 流程
+                        startVm.start(data.activity.place)
                     }
                 )
+            }
+
+            // ── Start 流程狀態：Dialog 顯示 ──
+            when (val st = startState) {
+                StartUiState.Idle -> Unit
+                StartUiState.Loading -> {
+                    // 你可換成自家 LoadingDialog
+                    AlertDialog(
+                        onDismissRequest = { },
+                        title = { Text("請稍候") },
+                        text = { CircularProgressIndicator() },
+                        confirmButton = {}
+                    )
+                }
+                is StartUiState.Preview -> {
+                    StartPreviewDialog(
+                        info = st.info,
+                        onDismiss = { startVm.reset() },
+                        onConfirmDepart = {
+                            // 直接開導航
+                            val p = st.info
+                            // 你原本的 ActivityBottomSheet 內 place.lat/lng 是非 null
+                            val activity = sheet?.activity
+                            if (activity != null) {
+                                openNavigation(context, activity.place.lat, activity.place.lng, activity.place.name)
+                            }
+                            startVm.reset()
+                            sheet = null
+                        },
+                        onChangePlan = {
+                            startVm.showAlternatives()
+                        }
+                    )
+                }
+                is StartUiState.Alternatives -> {
+                    AlternativesDialog(
+                        alts = st.alts,
+                        onDismiss = { startVm.reset() },
+                        onPick = { alt ->
+                            // 使用者選擇替代方案 → 以選定替代景點更新該 Activity 的 place
+                            sheet?.let { data ->
+                                val newPlace = data.activity.place.copy(
+                                    placeId = alt.placeId,
+                                    name = alt.name,
+                                    address = alt.address,
+                                    lat = alt.lat,
+                                    lng = alt.lng,
+                                    rating = alt.rating,
+                                    userRatingsTotal = alt.userRatingsTotal,
+                                    openStatusText = alt.openStatusText
+                                )
+                                val updated = data.activity.copy(place = newPlace)
+                                onEditActivity(trip.id, data.dayIndex, data.activityIndex, updated)
+                                startVm.reset()
+                                // 關閉底部 sheet
+                                sheet = null
+                            } ?: startVm.reset()
+                        },
+                        onSeeMore = {
+                            startVm.loadMore()
+                        }
+                    )
+                }
+                is StartUiState.Error -> {
+                    AlertDialog(
+                        onDismissRequest = { startVm.reset() },
+                        title = { Text("發生錯誤") },
+                        text = { Text(st.message) },
+                        confirmButton = {
+                            TextButton(onClick = { startVm.reset() }) {
+                                Text("關閉")
+                            }
+                        }
+                    )
+                }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

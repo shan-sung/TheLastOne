@@ -1,8 +1,10 @@
 package com.example.thelastone.vm
 
+// TripDetailViewModel.kt (檔案頂端或檔尾都可)
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.repo.TripRepository
 import com.example.thelastone.di.SessionManager
@@ -21,7 +23,15 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+
+private val FMT_HH_MM = DateTimeFormatter.ofPattern("H:mm")
+private fun parseLocalTimeOrNull(t: String?): LocalTime? =
+    try { if (t.isNullOrBlank()) null else LocalTime.parse(t.trim(), FMT_HH_MM) }
+    catch (_: Exception) { null }
+
 
 sealed interface TripDetailUiState {
     data object Loading : TripDetailUiState
@@ -54,7 +64,7 @@ class TripDetailViewModel @Inject constructor(
                         val uid = session.currentUserId
                         _perms.value = trip.computePerms(uid)
                     }
-                    .map<Trip, TripDetailUiState> { TripDetailUiState.Data(it) }
+                    .map<Trip, TripDetailUiState> { TripDetailUiState.Data(it.sortedByStartTime()) }
                     .catch { emit(TripDetailUiState.Error(it.message ?: "Load failed")) }
             }
             .stateIn(
@@ -71,3 +81,14 @@ class TripDetailViewModel @Inject constructor(
 
     fun reload() { retry.tryEmit(Unit) }
 }
+
+// TripDetailViewModel.kt
+private fun Trip.sortedByStartTime(): Trip = copy(
+    days = days.map { day ->
+        day.copy(
+            activities = day.activities.sortedWith(
+                compareBy<Activity> { parseLocalTimeOrNull(it.startTime) ?: LocalTime.MAX }
+            )
+        )
+    }
+)

@@ -210,12 +210,14 @@ fun PlaceDetailDialog(
                             PlaceActionMode.ADD_TO_ITINERARY -> "加入行程"
                             PlaceActionMode.ADD_TO_FAVORITE -> "加入最愛"
                             PlaceActionMode.REMOVE_FROM_FAVORITE -> "移除最愛"
+                            PlaceActionMode.REPLACE_IN_ITINERARY -> "更換行程" // ← 新增
                         },
                         onRightButtonClick = {
                             when (mode) {
                                 PlaceActionMode.ADD_TO_ITINERARY -> onAddToItinerary()
                                 PlaceActionMode.ADD_TO_FAVORITE -> onAddToFavorite()
                                 PlaceActionMode.REMOVE_FROM_FAVORITE -> onRemoveFromFavorite()
+                                PlaceActionMode.REPLACE_IN_ITINERARY -> onAddToItinerary() // ← 沿用右鍵 callback
                             }
                         },
                         onLeftCancel = onDismiss

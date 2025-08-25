@@ -1,5 +1,6 @@
 package com.example.thelastone.ui.screens.comp
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,27 +35,103 @@ import com.example.thelastone.data.model.coverPhotoUrl
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+private val DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
+private fun parseDateOrNull(s: String?): LocalDate? =
+    try { if (s.isNullOrBlank()) null else LocalDate.parse(s, DATE_FMT) } catch (_: Exception) { null }
+
+private enum class TripBucket(val title: String) {
+    Upcoming("Upcoming"),
+    Ongoing("Ongoing"),
+    Finished("Finished")
+}
+
+private fun bucketOf(trip: Trip, today: LocalDate): TripBucket {
+    val s = parseDateOrNull(trip.startDate)
+    val e = parseDateOrNull(trip.endDate)
+    return when {
+        e != null && e.isBefore(today)     -> TripBucket.Finished
+        s != null && s.isAfter(today)      -> TripBucket.Upcoming
+        else                               -> TripBucket.Ongoing
+    }
+}
+
+// 起始日遞增；解析失敗的排在最後
+private fun ComparatorByStart(): Comparator<Trip> = compareBy(
+    { parseDateOrNull(it.startDate) ?: LocalDate.MAX },
+    { it.name }
+)
+
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
+    val today = remember { LocalDate.now() }
+
+    // 分桶
+    val (upcoming, ongoing, finished) = remember(trips) {
+        val u = mutableListOf<Trip>()
+        val o = mutableListOf<Trip>()
+        val f = mutableListOf<Trip>()
+        trips.forEach { t ->
+            when (bucketOf(t, today)) {
+                TripBucket.Upcoming -> u += t
+                TripBucket.Ongoing  -> o += t
+                TripBucket.Finished -> f += t
+            }
+        }
+        u.sortWith(ComparatorByStart())
+        o.sortWith(ComparatorByStart())
+        f.sortWith(ComparatorByStart())
+        Triple(u, o, f)
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(
-            items = trips,
-            key = { it.id }
-        ) { trip ->
-            // 依 Trip 內容記住封面網址，避免每次重組重算
-            val coverUrl = remember(trip) { trip.coverPhotoUrl() }
+        // Upcoming
+        if (upcoming.isNotEmpty()) {
+            stickyHeader { TripHeader(TripBucket.Upcoming.title) }
+            items(items = upcoming, key = { it.id }) { trip ->
+                val coverUrl = remember(trip) { trip.coverPhotoUrl() }
+                TripCard(trip = trip, imageUrl = coverUrl, onClick = { openTrip(trip.id) })
+            }
+        }
 
-            TripCard(
-                trip = trip,
-                imageUrl = coverUrl,          // ← 傳入找到的第一張照片
-                onClick = { openTrip(trip.id) }
-            )
+        // Ongoing
+        if (ongoing.isNotEmpty()) {
+            stickyHeader { TripHeader(TripBucket.Ongoing.title) }
+            items(items = ongoing, key = { it.id }) { trip ->
+                val coverUrl = remember(trip) { trip.coverPhotoUrl() }
+                TripCard(trip = trip, imageUrl = coverUrl, onClick = { openTrip(trip.id) })
+            }
+        }
+
+        // Finished
+        if (finished.isNotEmpty()) {
+            stickyHeader { TripHeader(TripBucket.Finished.title) }
+            items(items = finished, key = { it.id }) { trip ->
+                val coverUrl = remember(trip) { trip.coverPhotoUrl() }
+                TripCard(trip = trip, imageUrl = coverUrl, onClick = { openTrip(trip.id) })
+            }
         }
     }
+}
+
+@Composable
+private fun TripHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 
