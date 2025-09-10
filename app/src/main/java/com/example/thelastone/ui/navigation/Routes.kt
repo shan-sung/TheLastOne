@@ -13,10 +13,9 @@ sealed class Root(val route: String) {
     data object Explore : Root("explore")
     data object MyTrips : Root("mytrips")
     data object Friends : Root("friends")
-    data object Saved   : Root("saved")
+    data object Saved : Root("saved")
     data object Profile : Root("profile")
 }
-
 // Trip 主線：以「巢狀 NavGraph」表達
 object TripRoutes {
     const val Invite = "trip/{tripId}/invite"
@@ -60,13 +59,11 @@ object MiscRoutes {
     const val EditProfile  = "profile/edit"
 }
 
-
 data class TopLevelDestination(
     val route: String,
     val labelRes: Int,
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
-
 
 val TOP_LEVEL_DESTINATIONS = listOf(
     TopLevelDestination(Root.Explore.route, R.string.tab_explore, Icons.Filled.TravelExplore),
