@@ -70,7 +70,6 @@ fun FriendsScreen(padding: PaddingValues, vm: FriendsViewModel = hiltViewModel()
                         onAccept = { vm.accept(item.request.id) },
                         onReject = { vm.reject(item.request.id) }
                     )
-                    Divider()
                 }
             }
         }
@@ -100,7 +99,6 @@ fun FriendsScreen(padding: PaddingValues, vm: FriendsViewModel = hiltViewModel()
                             .fillMaxWidth()
                             .clickable { previewFriend = u } // ★ 點整列開 Dialog
                     )
-                    Divider()
                 }
             }
         }

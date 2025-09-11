@@ -1,6 +1,5 @@
 package com.example.thelastone.ui.screens
 
-// TripDetailScreen.kt（同一檔內，加入 import 與狀態觀察）
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -32,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -89,35 +89,51 @@ fun TripDetailScreen(
             data class SheetData(val dayIndex: Int, val activityIndex: Int, val activity: Activity)
             var sheet by remember { mutableStateOf<SheetData?>(null) }
 
-            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                Column(Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        item { TripInfoCard(trip) }
-                        dayTabsAndActivities(
-                            trip = trip,
-                            selected = selected,
-                            onSelect = { selected = it },
-                            onActivityClick = { dayIdx, actIdx, act ->
-                                sheet = SheetData(dayIdx, actIdx, act)
-                            }
-                        )
-                        item { Spacer(Modifier.height(80.dp)) }
+            val pageBg = MaterialTheme.colorScheme.surfaceContainerLow
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = pageBg
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding) // 內容再吃 Scaffold 的 insets
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            item { TripInfoCard(trip) }
+                            dayTabsAndActivities(
+                                trip = trip,
+                                selected = selected,
+                                onSelect = { selected = it },
+                                onActivityClick = { dayIdx, actIdx, act ->
+                                    sheet = SheetData(dayIdx, actIdx, act)
+                                }
+                            )
+                            item { Spacer(Modifier.height(80.dp)) }
+                        }
                     }
-                }
 
-                if (perms?.canEditTrip == true) {
-                    FloatingActionButton(
-                        onClick = { onAddActivity(trip.id) },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(16.dp)
-                    ) { Icon(Icons.Filled.Add, null) }
+                    // ←←← 把 FAB 放進 Box 作用域裡，align 才可用
+                    if (perms?.canEditTrip == true) {
+                        FloatingActionButton(
+                            onClick = { onAddActivity(trip.id) },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding()
+                                .padding(16.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor   = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                        }
+                    }
                 }
             }
 
@@ -161,9 +177,6 @@ fun TripDetailScreen(
                         info = st.info,
                         onDismiss = { startVm.reset() },
                         onConfirmDepart = {
-                            // 直接開導航
-                            val p = st.info
-                            // 你原本的 ActivityBottomSheet 內 place.lat/lng 是非 null
                             val activity = sheet?.activity
                             if (activity != null) {
                                 openNavigation(context, activity.place.lat, activity.place.lng, activity.place.name)
