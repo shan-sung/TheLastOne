@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,6 +18,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +43,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -52,11 +58,47 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TripInfoCard(trip: Trip, modifier: Modifier = Modifier) {
-    ElevatedCard(modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(trip.name, style = MaterialTheme.typography.titleLarge)
-            Text("${trip.startDate} → ${trip.endDate}", style = MaterialTheme.typography.bodyMedium)
+fun TripInfoCard(
+    trip: Trip,
+    modifier: Modifier = Modifier,
+    tonalSecondary: Boolean = true
+) {
+    val container = if (tonalSecondary) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+    val onContainer = if (tonalSecondary) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(            // ← 卡片（非 Elevated）
+            containerColor = container,
+            contentColor   = onContainer
+        ),
+        elevation = CardDefaults.cardElevation(      // ← 無陰影
+            defaultElevation  = 0.dp,
+            pressedElevation  = 0.dp,
+            focusedElevation  = 0.dp,
+            hoveredElevation  = 0.dp,
+            draggedElevation  = 0.dp,
+            disabledElevation = 0.dp
+        )
+    ) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)   // ← 大節奏 12dp
+        ) {
+            Text(
+                trip.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // 次要資訊：用 onSurfaceVariant（一致的次要語氣）
+            Text(
+                "${trip.startDate} – ${trip.endDate}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             if (trip.activityStart != null && trip.activityEnd != null) {
                 Text(
@@ -65,37 +107,53 @@ fun TripInfoCard(trip: Trip, modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            // 旅程屬性 chips
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (trip.totalBudget != null) {
-                    AssistChip(onClick = {}, label = { Text("NT$${trip.totalBudget}") })
-                }
-                if (trip.avgAge != AgeBand.IGNORE) {
-                    AssistChip(onClick = {}, label = { Text(trip.avgAge.label()) })
-                }
-                trip.styles.forEach { s -> AssistChip(onClick = {}, label = { Text(s) }) }
-                trip.transportPreferences.forEach { t -> AssistChip(onClick = {}, label = { Text(t) }) }
+            Spacer(Modifier.height(2.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement   = Arrangement.spacedBy(2.dp)
+            ) {
+                trip.totalBudget?.let { CompactTag("NT$$it") }
+                if (trip.avgAge != AgeBand.IGNORE) CompactTag(trip.avgAge.label())
+                trip.styles.forEach { CompactTag(it) }
+                trip.transportPreferences.forEach { CompactTag(it) }
             }
-
-            // ==== NEW: Members ====
+            Spacer(Modifier.height(2.dp))
             if (trip.members.isNotEmpty()) {
                 MembersSection(members = trip.members)
             }
         }
     }
 }
-// MembersSection：把 Avatar 換成 AvatarWithTooltip
+
+@Composable
+fun CompactTag(text: String, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = cs.surface,
+        contentColor = cs.onSurfaceVariant
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,     // 小字
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp) // 高度約 24–28dp
+        )
+    }
+}
+
 @Composable
 private fun MembersSection(
     members: List<User>,
     maxShown: Int = 5
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val cs = MaterialTheme.colorScheme
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { // 微節奏 8dp
         Text(
             "Members（${members.size}）",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.titleSmall,        // ← 區塊小標
+            color = cs.onSurfaceVariant
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -106,11 +164,19 @@ private fun MembersSection(
             }
             val more = members.size - maxShown
             if (more > 0) {
-                AssistChip(onClick = {}, label = { Text("+$more") })
+                AssistChip(
+                    onClick = {},
+                    label = { Text("+$more") },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = cs.surface,
+                        labelColor = cs.onSurfaceVariant
+                    )
+                )
             }
         }
     }
 }
+
 @Composable
 private fun AvatarNameHint(user: User, size: Dp) {
     var show by remember { mutableStateOf(false) }
@@ -170,9 +236,17 @@ private fun AgeBand.label(): String = when (this) {
 
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
-    ElevatedCard(
+    val cs = MaterialTheme.colorScheme
+
+    Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = cs.secondaryContainer,     // ← 柔和底色
+            contentColor   = cs.onSecondaryContainer    // ← 預設文字/圖示色
+        ),
+        elevation = CardDefaults.cardElevation(0.dp)   // ← 無陰影更柔和
     ) {
         Row(
             modifier = Modifier
@@ -181,7 +255,8 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左側文字內容
+            val sub = cs.onTertiaryContainer.copy(alpha = 0.80f)
+
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -190,27 +265,20 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
 
                 val time = listOfNotNull(activity.startTime, activity.endTime)
                     .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
-                Text(time, style = MaterialTheme.typography.bodyMedium)
+                Text(time, style = MaterialTheme.typography.bodyMedium, color = sub)
 
-                val rating = activity.place.rating?.let {
-                    String.format("★ %.1f（%d）", it, activity.place.userRatingsTotal ?: 0)
-                }
-                if (rating != null) {
-                    Text(
-                        rating,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                activity.place.rating?.let {
+                    val rating = "★ %.1f（%d）".format(it, activity.place.userRatingsTotal ?: 0)
+                    Text(rating, style = MaterialTheme.typography.bodySmall, color = sub)
                 }
 
                 Text(
                     activity.place.address.orEmpty(),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = sub
                 )
             }
 
-            // 右側圖片
             if (!activity.place.photoUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = activity.place.photoUrl,
@@ -224,6 +292,7 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 fun LazyListScope.dayTabsAndActivities(
