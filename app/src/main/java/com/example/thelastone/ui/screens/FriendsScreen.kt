@@ -105,9 +105,6 @@ fun FriendsScreen(padding: PaddingValues, vm: FriendsViewModel = hiltViewModel()
     }
 
     // ===== Dialogs =====
-
-    // 1) 別人寄來的邀請（等待回覆）
-    // 1) 別人寄來的邀請（等待回覆）— 顯示接受/拒絕按鈕
     previewIncoming?.let { item ->
         FriendInfoDialog(
             user = item.fromUser,
