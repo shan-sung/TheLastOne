@@ -21,7 +21,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
@@ -127,12 +126,11 @@ fun TripInfoCard(
 
 @Composable
 fun CompactTag(text: String, modifier: Modifier = Modifier) {
-    val cs = MaterialTheme.colorScheme
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraLarge,
-        color = cs.surface,
-        contentColor = cs.onSurfaceVariant
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
     ) {
         Text(
             text = text,
@@ -147,13 +145,11 @@ private fun MembersSection(
     members: List<User>,
     maxShown: Int = 5
 ) {
-    val cs = MaterialTheme.colorScheme
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { // 微節奏 8dp
         Text(
             "Members（${members.size}）",
             style = MaterialTheme.typography.titleSmall,        // ← 區塊小標
-            color = cs.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -168,8 +164,8 @@ private fun MembersSection(
                     onClick = {},
                     label = { Text("+$more") },
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = cs.surface,
-                        labelColor = cs.onSurfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
@@ -236,15 +232,13 @@ private fun AgeBand.label(): String = when (this) {
 
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = cs.secondaryContainer,     // ← 柔和底色
-            contentColor   = cs.onSecondaryContainer    // ← 預設文字/圖示色
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,     // ← 柔和底色
+            contentColor   = MaterialTheme.colorScheme.onSecondaryContainer    // ← 預設文字/圖示色
         ),
         elevation = CardDefaults.cardElevation(0.dp)   // ← 無陰影更柔和
     ) {
@@ -255,28 +249,15 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val sub = cs.onTertiaryContainer.copy(alpha = 0.80f)
-
+            val sub = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.80f)
+            val time = listOfNotNull(activity.startTime, activity.endTime)
+                .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(activity.place.name, style = MaterialTheme.typography.titleMedium)
-
-                val time = listOfNotNull(activity.startTime, activity.endTime)
-                    .takeIf { it.isNotEmpty() }?.joinToString(" ~ ") ?: "未設定時間"
                 Text(time, style = MaterialTheme.typography.bodyMedium, color = sub)
-
-                activity.place.rating?.let {
-                    val rating = "★ %.1f（%d）".format(it, activity.place.userRatingsTotal ?: 0)
-                    Text(rating, style = MaterialTheme.typography.bodySmall, color = sub)
-                }
-
-                Text(
-                    activity.place.address.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sub
-                )
             }
 
             if (!activity.place.photoUrl.isNullOrBlank()) {

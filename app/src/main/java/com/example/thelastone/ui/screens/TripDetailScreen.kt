@@ -317,7 +317,7 @@ private fun ActivityBottomSheet(
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(4.dp))
 
             val hasHours =
                 !activity.place.openingHours.isNullOrEmpty() ||   // list 非空才算有
@@ -326,7 +326,7 @@ private fun ActivityBottomSheet(
 
 
             if (hasHours) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(4.dp))
 
                 // 有資料才計算顯示文字：若沒有 openStatusText，才用 fallback
                 val statusText = activity.place.openStatusText
@@ -343,7 +343,6 @@ private fun ActivityBottomSheet(
 
             // ── 評分（有 rating 才顯示） ──
             activity.place.rating?.let { r ->
-                Spacer(Modifier.height(12.dp))
                 RatingSection(
                     rating = r,
                     totalReviews = activity.place.userRatingsTotal ?: 0
