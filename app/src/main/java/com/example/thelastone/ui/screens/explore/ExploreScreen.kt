@@ -60,9 +60,9 @@ fun ExploreScreen(
                 // 只顯示 Popular Spots
                 SpotsSection(
                     title = "Popular Spots",
-                    isLoading = ui.spotsLoading,          // ← 改這裡
-                    error = ui.spotsError,                // ← 改這裡
-                    places = ui.spots,                    // ← 改這裡
+                    isLoading = ui.spotsLoading,
+                    error = ui.spotsError,
+                    places = ui.spots,
                     onOpenPlace = { id -> preview = ui.spots.firstOrNull { it.placeId == id } }, // ← 改這裡
                     savedIds = savedUi.savedIds,
                     onToggleSave = { place -> savedVm.toggle(place) },
