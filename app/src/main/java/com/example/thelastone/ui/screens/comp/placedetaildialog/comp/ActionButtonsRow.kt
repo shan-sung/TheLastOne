@@ -38,8 +38,6 @@ fun ActionButtonsRow(
         ) { Text(rightButtonLabel) }
     }
 }
-
-/* ====== 模式列舉（如果你的專案已經有 PlaceActionMode，直接沿用原本的） ====== */
 enum class PlaceActionMode {
     ADD_TO_ITINERARY, ADD_TO_FAVORITE, REMOVE_FROM_FAVORITE, REPLACE_IN_ITINERARY
 }

@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -17,10 +17,13 @@ import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -89,9 +92,7 @@ fun MainScaffold(nav: NavHostController) {
     val isTopLevel = remember(currentDest) { TOP_LEVEL_DESTINATIONS.any { it.route == currentDest?.route } }
     val scroll = pinnedScrollBehavior()
 
-    // ✅ 直接從 TripDetailViewModel 讀取 perms（當前 route 是 Detail 時）
     val showTripChat: Boolean = if (currentDest?.route == TripRoutes.Detail) {
-        // 取得當前 Detail 的 BackStackEntry，再用它來拿同一顆 VM
         val detailEntry = remember(backStack) { nav.getBackStackEntry(TripRoutes.Detail) }
         val detailVm: TripDetailViewModel = hiltViewModel(detailEntry)
         val perms by detailVm.perms.collectAsState()
@@ -102,12 +103,13 @@ fun MainScaffold(nav: NavHostController) {
         val detailEntry = remember(backStack) { nav.getBackStackEntry(TripRoutes.Detail) }
         val detailVm: TripDetailViewModel = hiltViewModel(detailEntry)
         val perms by detailVm.perms.collectAsState()
-        perms?.canChat == true       // ← outsider 就會是 false
-        // 若改成只有 owner 能邀請，這行改為：perms?.canEditTrip == true
+        perms?.canChat == true
     } else false
 
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,      // MTB: app 殼 = surface
+        contentColor   = MaterialTheme.colorScheme.onSurface,
         topBar = {
             if (currentDest?.route !in setOf(MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick, MiscRoutes.SearchUsers)) {
                 AppTopBar(
@@ -127,7 +129,7 @@ fun MainScaffold(nav: NavHostController) {
                     },
                     onOpenTripMore = { /* TODO */ },
                     showTripChat = showTripChat,
-                    showInvite = showInvite,          // ← NEW
+                    showInvite = showInvite,
                     scrollBehavior = scroll
                 )
             }
@@ -141,18 +143,18 @@ fun MainScaffold(nav: NavHostController) {
         contentWindowInsets = WindowInsets.safeDrawing,
         floatingActionButton = {
             if (currentDest?.route == Root.MyTrips.route) {
-                FloatingActionButton(onClick = {
-                    nav.navigate(TripRoutes.Flow) { launchSingleTop = true }
-                }) { Icon(Icons.Filled.Add, null) }
+                FloatingActionButton(
+                    onClick = { nav.navigate(TripRoutes.Flow) { launchSingleTop = true } },
+                    containerColor = MaterialTheme.colorScheme.primary,     // MTB: FAB = primary
+                    contentColor   = MaterialTheme.colorScheme.onPrimary
+                ) { Icon(Icons.Filled.Add, null) }
             }
         }
     ) { padding ->
         MainNavHost(nav = nav, padding = padding)
     }
-
     BackHandler(enabled = !isTopLevel) { nav.navigateUp() }
 }
-
 
 @Composable
 private fun MainNavHost(
@@ -207,10 +209,6 @@ private fun MainNavHost(
             route = TripRoutes.Detail,
             arguments = listOf(navArgument("tripId") { type = NavType.StringType })
         ) { entry ->
-            // 讓 VM 在這裡建立一次，並監聽 perms
-            val vm: TripDetailViewModel = hiltViewModel(entry)
-            val perms by vm.perms.collectAsState()
-
             TripDetailScreen(
                 padding = padding,
                 // 不要在 TripDetailScreen 裡再建立 NavController 或處理 canChat
@@ -351,26 +349,26 @@ private fun AppTopBar(
     onInvite: () -> Unit,
     showInvite: Boolean,
     onOpenTripMore: () -> Unit,
-    showTripChat: Boolean,                 // ← 新增參數
+    showTripChat: Boolean,
     scrollBehavior: TopAppBarScrollBehavior
 ) {
-    val route = destination?.route ?: ""
-    val title = when {
-        route == Root.Explore.route      -> "Explore"
-        route == Root.MyTrips.route      -> "My Trips"
-        route == Root.Friends.route      -> "Friends"
-        route == Root.Saved.route        -> "Saved"
-        route == Root.Profile.route      -> "Profile"
-        route == TripRoutes.Create       -> "Create Trip"
-        route == TripRoutes.Preview      -> "Preview Trip"
-        route == TripRoutes.Detail       -> "Trip Detail"
-        route == TripRoutes.PickPlace    -> "Pick Place"
-        route == TripRoutes.AddActivity  -> "Add Activity"
-        route == TripRoutes.EditActivity -> "Edit Activity"
-        route == TripRoutes.Chat         -> "Trip Chat"
-        route == MiscRoutes.SearchPlaces -> "Search Places"
-        route == MiscRoutes.SearchUsers  -> "Search Users"
-        route == MiscRoutes.EditProfile  -> "Edit Profile"
+    val route = destination?.route.orEmpty()
+    val title = when (route) {
+        Root.Explore.route      -> "Explore"
+        Root.MyTrips.route      -> "My Trips"
+        Root.Friends.route      -> "Friends"
+        Root.Saved.route        -> "Saved"
+        Root.Profile.route      -> "Profile"
+        TripRoutes.Create       -> "Create Trip"
+        TripRoutes.Preview      -> "Preview Trip"
+        TripRoutes.Detail       -> "Trip Detail"
+        TripRoutes.PickPlace    -> "Pick Place"
+        TripRoutes.AddActivity  -> "Add Activity"
+        TripRoutes.EditActivity -> "Edit Activity"
+        TripRoutes.Chat         -> "Trip Chat"
+        MiscRoutes.SearchPlaces -> "Search Places"
+        MiscRoutes.SearchUsers  -> "Search Users"
+        MiscRoutes.EditProfile  -> "Edit Profile"
         else -> ""
     }
 
@@ -401,22 +399,26 @@ private fun AppTopBar(
                     }
                 }
                 TripRoutes.Detail -> {
-                    // 只有 owner/member 才顯示 Chat
                     if (showTripChat) {
                         IconButton(onClick = onOpenTripChat) {
-                            Icon(Icons.Filled.Message, contentDescription = "Trip chat")
+                            Icon(Icons.AutoMirrored.Filled.Message, contentDescription = "Trip chat")
                         }
                     }
-                    IconButton(onClick = onInvite) {                     // ← Invite
+                    IconButton(onClick = onInvite) {
                         Icon(Icons.Filled.PersonAdd, contentDescription = "Invite friends")
                     }
                 }
             }
         },
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface
+        ),
         scrollBehavior = scrollBehavior
     )
 }
-
 
 private val NO_BOTTOM_BAR_ROUTES = setOf(
     TripRoutes.Create,
@@ -436,7 +438,11 @@ private fun AppBottomBar(
     nav: NavHostController,
     currentDestination: NavDestination?
 ) {
-    NavigationBar {
+    val cs = MaterialTheme.colorScheme
+    NavigationBar(
+        containerColor = cs.surface,
+        contentColor   = cs.onSurface
+    ) {
         TOP_LEVEL_DESTINATIONS.forEach { dest ->
             val selected = currentDestination.isInHierarchy(dest.route)
             NavigationBarItem(
@@ -449,7 +455,14 @@ private fun AppBottomBar(
                     }
                 },
                 icon = { Icon(dest.icon, null) },
-                label = { Text(text = stringResource(dest.labelRes)) }
+                label = { Text(text = stringResource(dest.labelRes)) },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor        = cs.primaryContainer,       // MTB 建議
+                    selectedIconColor     = cs.onPrimaryContainer,
+                    selectedTextColor     = cs.onPrimaryContainer,
+                    unselectedIconColor   = cs.onSurfaceVariant,
+                    unselectedTextColor   = cs.onSurfaceVariant
+                )
             )
         }
     }
