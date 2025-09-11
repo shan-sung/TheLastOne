@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination
@@ -49,7 +50,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.thelastone.ui.screens.AddActivityScreen
 import com.example.thelastone.ui.screens.EditProfileScreen
-import com.example.thelastone.ui.screens.ExploreScreen
+import com.example.thelastone.ui.screens.explore.ExploreScreen
 import com.example.thelastone.ui.screens.FriendsScreen
 import com.example.thelastone.ui.screens.InviteFriendsDialog
 import com.example.thelastone.ui.screens.PickPlaceScreen
@@ -373,7 +374,14 @@ private fun AppTopBar(
     }
 
     CenterAlignedTopAppBar(
-        title = { Text(title) },
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge, // ← Brand/Display 字體
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
         navigationIcon = {
             if (!isTopLevel) {
                 IconButton(onClick = onBack) {

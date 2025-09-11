@@ -1,4 +1,3 @@
-// CreateTripFormScreen.kt
 package com.example.thelastone.ui.screens.form
 
 import android.app.TimePickerDialog

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,7 +56,7 @@ private fun bucketOf(trip: Trip, today: LocalDate): TripBucket {
 }
 
 // 起始日遞增；解析失敗的排在最後
-private fun ComparatorByStart(): Comparator<Trip> = compareBy(
+private fun comparatorByStart(): Comparator<Trip> = compareBy(
     { parseDateOrNull(it.startDate) ?: LocalDate.MAX },
     { it.name }
 )
@@ -80,9 +79,9 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
                 TripBucket.Finished -> f += t
             }
         }
-        u.sortWith(ComparatorByStart())
-        o.sortWith(ComparatorByStart())
-        f.sortWith(ComparatorByStart())
+        u.sortWith(comparatorByStart())
+        o.sortWith(comparatorByStart())
+        f.sortWith(comparatorByStart())
         Triple(u, o, f)
     }
 
@@ -93,7 +92,14 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
     ) {
         // Upcoming
         if (upcoming.isNotEmpty()) {
-            stickyHeader { TripHeader(TripBucket.Upcoming.title) }
+            stickyHeader {
+                SectionHeader(
+                    text = TripBucket.Upcoming.title,
+                    secondaryTone = true,   // ← 建議跟 Explore 一致
+                    bottomSpace = 0.dp,     // ← 這裡設 0，避免和 spacedBy(12.dp) 疊加
+                    sticky = true           // ← 釘頭補 surface 背景，視覺穩定
+                )
+            }
             items(items = upcoming, key = { it.id }) { trip ->
                 val coverUrl = remember(trip) { trip.coverPhotoUrl() }
                 TripCard(trip = trip, imageUrl = coverUrl, onClick = { openTrip(trip.id) })
@@ -102,7 +108,14 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
 
         // Ongoing
         if (ongoing.isNotEmpty()) {
-            stickyHeader { TripHeader(TripBucket.Ongoing.title) }
+            stickyHeader {
+                SectionHeader(
+                    text = TripBucket.Ongoing.title,
+                    secondaryTone = true,   // ← 建議跟 Explore 一致
+                    bottomSpace = 0.dp,     // ← 這裡設 0，避免和 spacedBy(12.dp) 疊加
+                    sticky = true           // ← 釘頭補 surface 背景，視覺穩定
+                )
+            }
             items(items = ongoing, key = { it.id }) { trip ->
                 val coverUrl = remember(trip) { trip.coverPhotoUrl() }
                 TripCard(trip = trip, imageUrl = coverUrl, onClick = { openTrip(trip.id) })
@@ -111,7 +124,14 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
 
         // Finished
         if (finished.isNotEmpty()) {
-            stickyHeader { TripHeader(TripBucket.Finished.title) }
+            stickyHeader {
+                SectionHeader(
+                    text = TripBucket.Finished.title,
+                    secondaryTone = true,   // ← 建議跟 Explore 一致
+                    bottomSpace = 0.dp,     // ← 這裡設 0，避免和 spacedBy(12.dp) 疊加
+                    sticky = true           // ← 釘頭補 surface 背景，視覺穩定
+                )
+            }
             items(items = finished, key = { it.id }) { trip ->
                 val coverUrl = remember(trip) { trip.coverPhotoUrl() }
                 TripCard(trip = trip, imageUrl = coverUrl, onClick = { openTrip(trip.id) })
@@ -119,21 +139,6 @@ fun TripList(trips: List<Trip>, openTrip: (String) -> Unit) {
         }
     }
 }
-
-@Composable
-private fun TripHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-    )
-}
-
 
 @Composable
 fun TripCard(
@@ -166,7 +171,6 @@ fun TripCard(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // 沒圖時給個占位
                 Surface(
                     modifier = Modifier
                         .size(72.dp)
