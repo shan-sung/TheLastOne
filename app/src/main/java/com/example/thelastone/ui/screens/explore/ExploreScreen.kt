@@ -47,7 +47,6 @@ fun ExploreScreen(
             ui.isLoading -> LoadingState(Modifier.fillMaxSize(), "載入熱門行程中…")
             ui.error != null -> ErrorState(Modifier.fillMaxSize(), ui.error!!, onRetry = vm::retry)
             else -> {
-                // 行程區（維持原樣）
                 TripsSection(
                     title = "Popular Trips",
                     trips = ui.popularTrips,
@@ -57,7 +56,6 @@ fun ExploreScreen(
                     autoScrollMillis = 4000L
                 )
 
-                // 只顯示 Popular Spots
                 SpotsSection(
                     title = "Popular Spots",
                     isLoading = ui.spotsLoading,
@@ -66,11 +64,9 @@ fun ExploreScreen(
                     onOpenPlace = { id -> preview = ui.spots.firstOrNull { it.placeId == id } }, // ← 改這裡
                     savedIds = savedUi.savedIds,
                     onToggleSave = { place -> savedVm.toggle(place) },
-                    onRetry = vm::loadSpots               // ← 改這裡
+                    onRetry = vm::loadSpots
                 )
 
-
-                // 收藏 dialog（維持原樣）
                 if (preview != null) {
                     val isSaved = savedUi.savedIds.contains(preview!!.placeId)
                     val mode = if (isSaved) PlaceActionMode.REMOVE_FROM_FAVORITE
