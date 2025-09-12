@@ -1,6 +1,8 @@
 package com.example.thelastone.ui.screens.explore
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,10 +34,20 @@ import com.example.thelastone.ui.screens.comp.placedetaildialog.PlaceDetailDialo
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.PlaceActionMode
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
-import com.example.thelastone.utils.getCurrentLatLngOrNull
 import com.example.thelastone.vm.ExploreViewModel
 import com.example.thelastone.vm.SavedViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+// ⬇️ 新增：定位與協程工具
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.Task
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 @Composable
 fun ExploreScreen(
@@ -66,9 +78,10 @@ fun ExploreScreen(
 
     // ---- 依「目前權限狀態」載入 Spots 的統一入口 ----
     fun reloadSpots() {
+        if (ui.spotsLoading) return // 避免重複打
         if (hasLocationPermission()) {
             scope.launch {
-                val p = getCurrentLatLngOrNull(ctx)
+                val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
                 if (p != null) viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
                 else viewModel.loadSpotsTaiwan()
             }
@@ -84,9 +97,16 @@ fun ExploreScreen(
                 (result[Manifest.permission.ACCESS_COARSE_LOCATION] == true)
         if (granted) {
             scope.launch {
-                val p = getCurrentLatLngOrNull(ctx)
-                if (p != null) viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
-                else viewModel.loadSpotsTaiwan()
+                val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
+                if (p != null) {
+                    viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
+                } else {
+                    // 不立即降級，安排一次晚點重試
+                    delay(1500)
+                    val p2 = getLatLngWithRetries(ctx, tries = 3, intervalMs = 800)
+                    if (p2 != null) viewModel.loadSpotsAroundMe(lat = p2.lat, lng = p2.lng)
+                    else viewModel.loadSpotsTaiwan() // 最後才退回
+                }
             }
         } else {
             viewModel.loadSpotsTaiwan()
@@ -95,9 +115,10 @@ fun ExploreScreen(
 
     val askedPermissionOnce = rememberSaveable { mutableStateOf(false) }
 
+    // ⬇️ 初次進頁：也改用「重試版取位」
     LaunchedEffect(Unit) {
         if (hasLocationPermission()) {
-            val p = getCurrentLatLngOrNull(ctx)
+            val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
             if (p != null) viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
             else viewModel.loadSpotsTaiwan()
         } else if (!askedPermissionOnce.value) {
@@ -112,26 +133,31 @@ fun ExploreScreen(
         }
     }
 
+    // ---- 監聽 ON_RESUME：偵測「無權限→有權限」的變化 ----
     val lifecycleOwner = LocalLifecycleOwner.current
     val lastPermissionGranted = remember { mutableStateOf(hasLocationPermission()) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // 回到此頁就檢查權限是否「從未授權 → 已授權」
                 val nowGranted = hasLocationPermission()
                 val wasGranted = lastPermissionGranted.value
                 lastPermissionGranted.value = nowGranted
 
                 if (nowGranted && !wasGranted) {
-                    // 權限剛變成允許 → 重新載入附近清單
+                    // 權限剛變允許 → 優先嘗試附近（含重試），取不到再排背景嘗試
                     scope.launch {
-                        val p = getCurrentLatLngOrNull(ctx)
+                        val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
                         if (p != null) {
                             viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
                         } else {
-                            // 偶發：權限剛給但還拿不到座標，先給台灣熱門避免卡住
-                            viewModel.loadSpotsTaiwan()
+                            // 背景再試一次
+                            launch {
+                                delay(2000)
+                                val p2 = getLatLngWithRetries(ctx, tries = 3, intervalMs = 800)
+                                if (p2 != null) viewModel.loadSpotsAroundMe(lat = p2.lat, lng = p2.lng)
+                                // 還是沒有 → 保持現狀（可能仍是 Taiwan），交給使用者下拉刷新再試
+                            }
                         }
                     }
                 }
@@ -177,9 +203,11 @@ fun ExploreScreen(
                         onOpenPlace = { id -> preview = ui.spots.firstOrNull { it.placeId == id } },
                         savedIds = savedUi.savedIds,
                         onToggleSave = { place -> savedVm.toggle(place) },
-                        onRetry = { reloadSpots() } // 保留：真的失敗時才會看到
+                        onRetry = { reloadSpots() },      // 失敗時重試
+                        onRefresh = { reloadSpots() }     // 👈 右上角 Refresh icon
                     )
                 }
+
                 // Dialog
                 if (preview != null) {
                     val isSaved = savedUi.savedIds.contains(preview!!.placeId)
@@ -203,4 +231,41 @@ fun ExploreScreen(
             }
         }
     }
+}
+
+/* =================== 以下是「兩階段取位 + 重試」工具 =================== */
+
+data class LatLng(val lat: Double, val lng: Double)
+
+@SuppressLint("MissingPermission")
+private suspend fun getLatLngWithRetries(
+    ctx: Context,
+    tries: Int = 5,
+    intervalMs: Long = 600
+): LatLng? = withContext(Dispatchers.Main) {
+    val client = LocationServices.getFusedLocationProviderClient(ctx)
+    repeat(tries) {
+        // 1) 先試 lastLocation（快）
+        val last = withContext(Dispatchers.IO) { client.lastLocation.awaitNullable() }
+        if (last != null) return@withContext LatLng(last.latitude, last.longitude)
+
+        // 2) 再試 single fix（可能要等）
+        val cur = withTimeoutOrNull(1500L) {
+            client.getCurrentLocation(
+                Priority.PRIORITY_BALANCED_POWER_ACCURACY, /* cancellationToken = */ null
+            ).awaitNullable()
+        }
+        if (cur != null) return@withContext LatLng(cur.latitude, cur.longitude)
+
+        // 3) 下一輪
+        delay(intervalMs)
+    }
+    return@withContext null
+}
+
+// Task<T> → suspend（nullable 版）
+private suspend fun <T> Task<T>.awaitNullable(): T? = suspendCancellableCoroutine { cont ->
+    addOnSuccessListener { cont.resume(it) {} }
+    addOnFailureListener { cont.resume(null) {} }
+    addOnCanceledListener { cont.cancel() }
 }

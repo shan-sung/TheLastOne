@@ -47,8 +47,7 @@ fun PlaceCard(
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!place.photoUrl.isNullOrBlank()) {
