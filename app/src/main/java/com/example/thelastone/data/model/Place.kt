@@ -53,9 +53,6 @@ data class PlaceLite(
     val openStatusText: String? = null            // ✅ 算好的文案：「營業中 · 至 21:00」
 )
 
-
-// 互轉（在 PickPlace 選完 & AddActivity 要建 Activity 時用）
-// 互轉（建議補上 openNow / openStatusText）
 fun Place.toLite() = PlaceLite(
     placeId = placeId,
     name = name,

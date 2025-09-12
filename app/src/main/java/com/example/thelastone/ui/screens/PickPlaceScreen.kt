@@ -133,7 +133,7 @@ private fun PopularTab(
         ui.spotsError != null -> ErrorState(
             Modifier.fillMaxSize(),
             ui.spotsError!!,
-            onRetry = { vm.loadSpots() }   // ← 直接重載推薦清單
+            onRetry = { vm.loadSpotsTaiwan() }   // ← 直接重載推薦清單
         )
         ui.spots.isEmpty() -> EmptyState(
             Modifier.fillMaxSize(),
