@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.thelastone.data.model.Activity
+import com.example.thelastone.data.model.Trip
 import com.example.thelastone.ui.AlternativesDialog
 import com.example.thelastone.ui.StartPreviewDialog
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.OpeningHoursSection
@@ -66,14 +68,14 @@ import com.example.thelastone.vm.TripDetailViewModel
 fun TripDetailScreen(
     padding: PaddingValues,
     viewModel: TripDetailViewModel = hiltViewModel(),
-    startVm: StartFlowViewModel = hiltViewModel(), // ← 新增
+    startVm: StartFlowViewModel = hiltViewModel(),
     onAddActivity: (tripId: String) -> Unit = {},
-    onEditActivity: (tripId: String, dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _,_,_,_ -> },
+    onEditActivity: (tripId: String, activityId: String) -> Unit = { _, _ -> },
     onDeleteActivity: (tripId: String, dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _,_,_,_ -> }
 ) {
     val state by viewModel.state.collectAsState()
     val perms = viewModel.perms.collectAsState().value
-    val startState by startVm.ui.collectAsState() // ← 新增
+    val startState by startVm.ui.collectAsState()
     val context = LocalContext.current
 
     when (val s = state) {
@@ -86,18 +88,17 @@ fun TripDetailScreen(
         is TripDetailUiState.Data -> {
             val trip = s.trip
             var selected by rememberSaveable { mutableIntStateOf(0) }
-            data class SheetData(val dayIndex: Int, val activityIndex: Int, val activity: Activity)
-            var sheet by remember { mutableStateOf<SheetData?>(null) }
+            var sheetRef by remember { mutableStateOf<SheetRef?>(null) }
 
-            val pageBg = MaterialTheme.colorScheme.surfaceContainerLow
+            // 內容列表
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = pageBg
+                color = MaterialTheme.colorScheme.surfaceContainerLow
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(padding) // 內容再吃 Scaffold 的 insets
+                        .padding(padding)
                 ) {
                     Column(Modifier.fillMaxSize()) {
                         LazyColumn(
@@ -112,15 +113,15 @@ fun TripDetailScreen(
                                 trip = trip,
                                 selected = selected,
                                 onSelect = { selected = it },
-                                onActivityClick = { dayIdx, actIdx, act ->
-                                    sheet = SheetData(dayIdx, actIdx, act)
+                                onActivityClick = { dayIdx, _, act ->
+                                    val dayKey = trip.days[dayIdx].date
+                                    sheetRef = SheetRef(dayKey, act.id)
                                 }
                             )
                             item { Spacer(Modifier.height(80.dp)) }
                         }
                     }
 
-                    // ←←← 把 FAB 放進 Box 作用域裡，align 才可用
                     if (perms?.canEditTrip == true) {
                         FloatingActionButton(
                             onClick = { onAddActivity(trip.id) },
@@ -130,43 +131,43 @@ fun TripDetailScreen(
                                 .padding(16.dp),
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor   = MaterialTheme.colorScheme.onPrimary
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null)
-                        }
+                        ) { Icon(Icons.Filled.Add, null) }
                     }
                 }
             }
 
-            // ── ActivityBottomSheet：把 onStart 接到 StartFlowViewModel ──
-            sheet?.let { data ->
+            // 從當前 trip 狀態反查最新 activity
+            val resolved = sheetRef?.let { trip.findActivity(it) }
+            if (resolved == null && sheetRef != null) {
+                // 這筆已經不存在 → 關閉
+                LaunchedEffect(Unit) { sheetRef = null }
+            }
+
+            resolved?.let { (dayIdx, actIdx, act) ->
                 ActivityBottomSheet(
-                    activity = data.activity,
+                    activity = act,
                     readOnly = perms?.readOnly == true,
-                    canEdit = perms?.canEditTrip == true,
-                    onDismiss = { sheet = null },
+                    canEdit  = perms?.canEditTrip == true,
+                    onDismiss = { sheetRef = null },
                     onEdit = {
-                        onEditActivity(trip.id, data.dayIndex, data.activityIndex, data.activity)
-                        sheet = null
+                        onEditActivity(trip.id, act.id)
+                        sheetRef = null
                     },
                     onDelete = {
-                        viewModel.removeActivity(data.dayIndex, data.activityIndex)
-                        sheet = null
+                        onDeleteActivity(trip.id, dayIdx, actIdx, act)
+                        sheetRef = null
                     },
-                    onGoMaps = { openInMaps(context, data.activity) },
-                    onStart = {
-                        // 啟動 Start 流程
-                        startVm.start(data.activity.place)
-                    }
+                    onGoMaps = { openInMaps(context, act) },
+                    onStart = { startVm.start(act.place) }
                 )
             }
 
-            // ── Start 流程狀態：Dialog 顯示 ──
+            // Start 流程也要用 sheetRef 現查
             when (val st = startState) {
                 StartUiState.Idle -> Unit
                 StartUiState.Loading -> {
-                    // 你可換成自家 LoadingDialog
                     AlertDialog(
-                        onDismissRequest = { },
+                        onDismissRequest = {},
                         title = { Text("請稍候") },
                         text = { CircularProgressIndicator() },
                         confirmButton = {}
@@ -177,16 +178,14 @@ fun TripDetailScreen(
                         info = st.info,
                         onDismiss = { startVm.reset() },
                         onConfirmDepart = {
-                            val activity = sheet?.activity
-                            if (activity != null) {
-                                openNavigation(context, activity.place.lat, activity.place.lng, activity.place.name)
+                            val act = sheetRef?.let { trip.findActivity(it) }?.third
+                            if (act != null) {
+                                openNavigation(context, act.place.lat, act.place.lng, act.place.name)
                             }
                             startVm.reset()
-                            sheet = null
+                            sheetRef = null
                         },
-                        onChangePlan = {
-                            startVm.showAlternatives()
-                        }
+                        onChangePlan = { startVm.showAlternatives() }
                     )
                 }
                 is StartUiState.Alternatives -> {
@@ -194,28 +193,14 @@ fun TripDetailScreen(
                         alts = st.alts,
                         onDismiss = { startVm.reset() },
                         onPick = { alt ->
-                            // 使用者選擇替代方案 → 以選定替代景點更新該 Activity 的 place
-                            sheet?.let { data ->
-                                val newPlace = data.activity.place.copy(
-                                    placeId = alt.placeId,
-                                    name = alt.name,
-                                    address = alt.address,
-                                    lat = alt.lat,
-                                    lng = alt.lng,
-                                    rating = alt.rating,
-                                    userRatingsTotal = alt.userRatingsTotal,
-                                    openStatusText = alt.openStatusText
-                                )
-                                val updated = data.activity.copy(place = newPlace)
-                                onEditActivity(trip.id, data.dayIndex, data.activityIndex, updated)
-                                startVm.reset()
-                                // 關閉底部 sheet
-                                sheet = null
-                            } ?: startVm.reset()
+                            val latest = sheetRef?.let { trip.findActivity(it) }
+                            if (latest != null) {
+                                onEditActivity(trip.id, latest.third.id) // 直接帶 ID 進編輯頁
+                            }
+                            startVm.reset()
+                            sheetRef = null
                         },
-                        onSeeMore = {
-                            startVm.loadMore()
-                        }
+                        onSeeMore = { startVm.loadMore() }
                     )
                 }
                 is StartUiState.Error -> {
@@ -224,9 +209,7 @@ fun TripDetailScreen(
                         title = { Text("發生錯誤") },
                         text = { Text(st.message) },
                         confirmButton = {
-                            TextButton(onClick = { startVm.reset() }) {
-                                Text("關閉")
-                            }
+                            TextButton(onClick = { startVm.reset() }) { Text("關閉") }
                         }
                     )
                 }
@@ -234,7 +217,6 @@ fun TripDetailScreen(
         }
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -426,4 +408,16 @@ private fun openInMaps(context: Context, activity: Activity) {
             Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(name)}")
         context.startActivity(Intent(Intent.ACTION_VIEW, web))
     }
+}
+
+// 用來存當前選中的 Activity：用 dayKey + activityId 組合，避免 index 失效
+data class SheetRef(val dayKey: String, val activityId: String)
+
+// 從當前 trip 狀態，用 SheetRef 找到最新索引與物件
+fun Trip.findActivity(ref: SheetRef): Triple<Int, Int, Activity>? {
+    val dayIdx = days.indexOfFirst { it.date == ref.dayKey }
+    if (dayIdx < 0) return null
+    val actIdx = days[dayIdx].activities.indexOfFirst { it.id == ref.activityId }
+    if (actIdx < 0) return null
+    return Triple(dayIdx, actIdx, days[dayIdx].activities[actIdx])
 }

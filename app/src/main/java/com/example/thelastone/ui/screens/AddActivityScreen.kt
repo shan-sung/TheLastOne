@@ -10,11 +10,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -55,43 +55,59 @@ import com.example.thelastone.utils.findDayIndexByDate
 import com.example.thelastone.utils.millisToDateString
 import com.example.thelastone.vm.AddActivityUiState
 import com.example.thelastone.vm.AddActivityViewModel
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddActivityScreen(
     padding: PaddingValues,
     tripId: String,
-    placeJson: String?,   // ← 允許為 null（Edit 模式）
-    nav: NavHostController,
-    vm: AddActivityViewModel = hiltViewModel()
+    placeJson: String?,
+    activityId: String? = null,
+    nav: NavHostController
 ) {
-    val state by vm.state.collectAsStateWithLifecycle()
+    val vm: AddActivityViewModel = hiltViewModel()
 
+    // 既有：依參數載入
+    LaunchedEffect(activityId, placeJson) {
+        if (!activityId.isNullOrBlank()) {
+            vm.loadForEdit(tripId, activityId)
+        } else if (!placeJson.isNullOrBlank()) {
+            vm.initForCreate(tripId, placeJson)
+        } else {
+            vm.fail("缺少必要參數")
+        }
+    }
+
+    // ✅ 這段是關鍵：收集 VM 的單次事件並導航
     LaunchedEffect(Unit) {
-        vm.effects.collect { eff ->
+        vm.effects.collectLatest { eff ->
             when (eff) {
                 is AddActivityViewModel.Effect.NavigateToDetail -> {
-                    nav.navigate(TripRoutes.detail(eff.tripId)) {
-                        popUpTo(TripRoutes.detail(eff.tripId)) { inclusive = false }
-                        launchSingleTop = true
+                    // 方案 A：嘗試直接彈回到既有的 Detail（若在返回堆疊上）
+                    val popped = nav.popBackStack(TripRoutes.Detail, inclusive = false)
+                    if (!popped) {
+                        // 方案 B：不在堆疊上就重新導航到該 trip 的 Detail
+                        nav.navigate(TripRoutes.detail(eff.tripId)) {
+                            // 清掉舊的 Detail（路由樣板可用）
+                            popUpTo(TripRoutes.Detail) { inclusive = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 }
             }
         }
     }
 
+    val state by vm.state.collectAsStateWithLifecycle()
     val canSubmit = remember(state) { state.trip != null && !state.submitting }
 
     Scaffold(
-        // ✅ 外層 insets 放到這裡一次性處理
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .consumeWindowInsets(padding),
-
-        // ✅ 關掉內層 Scaffold 預設的系統 insets，避免和外層重疊
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-
+            .padding(padding),
+        contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             Button(
                 onClick = vm::submit,
@@ -180,8 +196,6 @@ private fun AddActivityForm(
         onDateChange(datePickerState.selectedDateMillis)
     }
 
-    var dateExpanded by rememberSaveable { mutableStateOf(false) }
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 0.dp),
@@ -191,8 +205,6 @@ private fun AddActivityForm(
             Text(state.place?.name.orEmpty(), style = MaterialTheme.typography.titleLarge)
             Text("${trip.startDate} ~ ${trip.endDate}")
         }
-
-        // 📅 日期（平台 DatePicker）
         // 📅 日期（OutlinedTextField 風格＋下拉展開動畫）
         item {
             DateFieldExpandable(
@@ -201,7 +213,6 @@ private fun AddActivityForm(
                 onDateChange = onDateChange
             )
         }
-
 
         // ⏰ 開始時間（平台 TimePicker）
         item {

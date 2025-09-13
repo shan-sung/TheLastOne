@@ -212,10 +212,9 @@ private fun MainNavHost(
         ) { entry ->
             TripDetailScreen(
                 padding = padding,
-                // 不要在 TripDetailScreen 裡再建立 NavController 或處理 canChat
                 onAddActivity = { id -> nav.navigate(TripRoutes.pickPlace(id)) },
-                onEditActivity = { id, dayIndex, activityIndex, _ ->
-                    nav.navigate(TripRoutes.editActivity(id, dayIndex, activityIndex))
+                onEditActivity = { id, activityId ->
+                    nav.navigate(TripRoutes.editActivity(id, activityId)) // ✅ 只帶 ID
                 }
             )
         }
@@ -287,15 +286,15 @@ private fun MainNavHost(
         composable(
             route = TripRoutes.EditActivity,
             arguments = listOf(
-                navArgument("tripId")       { type = NavType.StringType },
-                navArgument("dayIndex")     { type = NavType.IntType },
-                navArgument("activityIndex"){ type = NavType.IntType }
+                navArgument("tripId")    { type = NavType.StringType },
+                navArgument("activityId"){ type = NavType.StringType }
             )
-        ) {
+        ) { entry ->
             AddActivityScreen(
                 padding = padding,
-                tripId = it.arguments!!.getString("tripId")!!,
-                placeJson = null,   // 編輯不帶 placeJson
+                tripId = entry.arguments!!.getString("tripId")!!,
+                placeJson = null,                 // 編輯不帶 placeJson
+                activityId = entry.arguments!!.getString("activityId"), // ✅ 新增
                 nav = nav
             )
         }

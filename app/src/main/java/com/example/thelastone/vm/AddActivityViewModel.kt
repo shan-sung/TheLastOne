@@ -54,22 +54,19 @@ class AddActivityViewModel @Inject constructor(
     }
 
     private val tripId: String = checkNotNull(savedStateHandle["tripId"])
-
-    // placeJson 在 Add 模式才會有；Edit 模式不一定有
     private val placeLiteFromArg: PlaceLite? =
         savedStateHandle.get<String>("placeJson")?.let { decodePlaceArg(it) }
 
-    // 模式判斷：有 dayIndex + activityIndex 就是 Edit
+    // ✅ 全面改成以 activityId 判斷模式
     sealed class Mode {
         data object Add : Mode()
-        data class Edit(val dayIndex: Int, val activityIndex: Int) : Mode()
+        data class Edit(val activityId: String) : Mode()
     }
     private val mode: Mode = run {
-        val di = savedStateHandle.get<Int>("dayIndex")
-        val ai = savedStateHandle.get<Int>("activityIndex")
-        if (di != null && ai != null) Mode.Edit(di, ai) else Mode.Add
+        val aid = savedStateHandle.get<String>("activityId")
+        if (!aid.isNullOrBlank()) Mode.Edit(aid) else Mode.Add
     }
-    val editing: Boolean get() = mode is Mode.Edit  // 給 UI 換按鈕文字用
+    val editing: Boolean get() = mode is Mode.Edit
 
     private val _state = MutableStateFlow(AddActivityUiState(place = placeLiteFromArg))
     val state: StateFlow<AddActivityUiState> = _state
@@ -93,29 +90,24 @@ class AddActivityViewModel @Inject constructor(
                             it.copy(
                                 phase = AddActivityUiState.Phase.Ready,
                                 trip = t,
-                                selectedDateMillis = it.selectedDateMillis ?: defaultMillis,
-                                // place 已在建構時帶入 placeLiteFromArg（新增時會顯示）
+                                selectedDateMillis = it.selectedDateMillis ?: defaultMillis
                             )
                         }
                     }
                     is Mode.Edit -> {
-                        val day = t.days[m.dayIndex]
-                        val act = day.activities[m.activityIndex]
-                        val dayDate = when (val d = day.date) {
-                            is String -> LocalDate.parse(d, DATE_FMT)
-                            is java.time.LocalDate -> d
-                            is java.time.LocalDateTime -> d.toLocalDate()
-                            else -> LocalDate.parse(d.toString(), DATE_FMT)
-                        }
-                        val millis = dayDate.atStartOfDay(ZoneId.systemDefault())
-                            .toInstant().toEpochMilli()
+                        val (dayIdx, actIdx, act, dayDate) = findActivityPositionAndDate(t, m.activityId)
+                            ?: return@onSuccess _state.update {
+                                it.copy(phase = AddActivityUiState.Phase.Error("找不到要編輯的活動"))
+                            }
+
+                        val millis = dayDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
                         _state.update {
                             it.copy(
                                 phase = AddActivityUiState.Phase.Ready,
                                 trip = t,
                                 selectedDateMillis = millis,
-                                place = act.place.toLite(),    // ← 由舊資料預填
+                                place = act.place.toLite(),
                                 startTime = act.startTime,
                                 endTime   = act.endTime,
                                 note      = act.note
@@ -129,7 +121,23 @@ class AddActivityViewModel @Inject constructor(
             }
     }
 
-    fun updateDate(millis: Long?)  { _state.update { it.copy(selectedDateMillis = millis) } }
+    // 讓外部（AddActivityScreen）可直接呼叫（你已經有 stub，就沿用）
+    suspend fun loadForEdit(tripId: String, activityId: String) {
+        // 這裡可直接呼叫 reload()，因為 Mode 已由 savedStateHandle 決定
+        reload()
+    }
+
+    fun initForCreate(tripId: String, placeJson: String) {
+        // 如需要額外初始化，可在這裡解析 placeJson 後 setState；
+        // 你也可以只靠上面的 placeLiteFromArg 完成預填，不一定要動這裡。
+    }
+    // AddActivityViewModel.kt
+    fun fail(message: String) {
+        _state.update { it.copy(phase = AddActivityUiState.Phase.Error(message)) }
+    }
+
+
+    fun updateDate(millis: Long?)   { _state.update { it.copy(selectedDateMillis = millis) } }
     fun updateStartTime(v: String?) { _state.update { it.copy(startTime = v?.ifBlank { null }) } }
     fun updateEndTime(v: String?)   { _state.update { it.copy(endTime = v?.ifBlank { null }) } }
     fun updateNote(v: String?)      { _state.update { it.copy(note = v?.ifBlank { null }) } }
@@ -166,21 +174,29 @@ class AddActivityViewModel @Inject constructor(
                     }
             }
             is Mode.Edit -> {
-                val oldDay = m.dayIndex
-                val act0 = t.days[oldDay].activities[m.activityIndex]
+                // ✅ 先用 activityId 找到目前索引與舊資料
+                val pos = findActivityPositionAndDate(t, m.activityId)
+                if (pos == null) {
+                    _state.update { it.copy(submitting = false, phase = AddActivityUiState.Phase.Error("找不到活動")) }
+                    return@launch
+                }
+                val (oldDayIndex, oldActIndex, act0, _) = pos
+
                 val updated = act0.copy(
-                    // place 保持原地點；若你要讓使用者換地點，這裡可改成 (s.place ?: act0.place.toLite()).toFull()
+                    // 若要允許改地點，這裡可以用 (s.place ?: act0.place.toLite()).toFull()
                     startTime = s.startTime,
                     endTime = s.endTime,
                     note = s.note
                 )
+
                 val result = runCatching {
-                    if (newDayIndex == oldDay) {
-                        repo.updateActivity(tripId, oldDay, m.activityIndex, updated)
+                    if (newDayIndex == oldDayIndex) {
+                        repo.updateActivity(tripId, oldDayIndex, oldActIndex, updated)
                     } else {
-                        // 日期變更：先刪舊、再加到新的一天
-                        repo.removeActivity(tripId, oldDay, m.activityIndex)
-                        repo.addActivity(tripId, newDayIndex, updated.copy(id = UUID.randomUUID().toString()))
+                        // 日期有變：先刪舊 → 再以同一 activityId（或新的）加到新的一天
+                        // 若後端允許保留 id，可用 updated（同 id）；否則產新 id
+                        repo.removeActivity(tripId, oldDayIndex, oldActIndex)
+                        repo.addActivity(tripId, newDayIndex, updated)
                     }
                 }
                 result
@@ -194,4 +210,26 @@ class AddActivityViewModel @Inject constructor(
             }
         }
     }
+
+    /** 以 activityId 找到 (dayIndex, activityIndex, act, dayDate) */
+    private fun findActivityPositionAndDate(trip: Trip, activityId: String)
+            : Quadruple<Int, Int, Activity, LocalDate>? {
+        trip.days.forEachIndexed { dIdx, day ->
+            val aIdx = day.activities.indexOfFirst { it.id == activityId }
+            if (aIdx >= 0) {
+                val act = day.activities[aIdx]
+                val dayDate = when (val d = day.date) {
+                    is String -> LocalDate.parse(d, DATE_FMT)
+                    is java.time.LocalDate -> d
+                    is java.time.LocalDateTime -> d.toLocalDate()
+                    else -> LocalDate.parse(d.toString(), DATE_FMT)
+                }
+                return Quadruple(dIdx, aIdx, act, dayDate)
+            }
+        }
+        return null
+    }
 }
+
+/** 小工具：沒有現成 Quadruple 就自建一下（也可用 Pair/Triple 巢狀替代） */
+data class Quadruple<A,B,C,D>(val first: A, val second: B, val third: C, val fourth: D)

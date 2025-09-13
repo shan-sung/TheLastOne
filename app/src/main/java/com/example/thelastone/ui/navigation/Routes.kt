@@ -41,10 +41,9 @@ object TripRoutes {
         "trip/$tripId/add-activity?placeJson=$placeJsonEncoded"
 
     // 可選：編輯活動
-    const val EditActivity = "trip/{tripId}/activity/{dayIndex}/{activityIndex}/edit"
-    fun editActivity(tripId: String, day: Int, idx: Int) =
-        "trip/$tripId/activity/$day/$idx/edit"
-
+    const val EditActivity = "trip/{tripId}/activity/{activityId}/edit"
+    fun editActivity(tripId: String, activityId: String) =
+        "trip/$tripId/activity/$activityId/edit"
     const val Chat = "trip/{tripId}/chat"
     fun chat(tripId: String) = "trip/$tripId/chat"
 }
