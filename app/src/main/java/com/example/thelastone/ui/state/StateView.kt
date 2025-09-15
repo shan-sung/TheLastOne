@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -104,6 +105,46 @@ fun ErrorState(
                 if (secondaryLabel != null && onSecondary != null) {
                     TextButton(onClick = onSecondary) { Text(secondaryLabel) }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun AskLocationState(
+    modifier: Modifier = Modifier,
+    title: String = "開啟定位以查看附近景點",
+    description: String = "我們將以你的大概位置推薦周邊熱門景點。",
+    onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 140.dp)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Filled.LocationOn,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onRequestPermission) { Text("允許定位") }
+                TextButton(onClick = onOpenSettings) { Text("前往設定") }
             }
         }
     }

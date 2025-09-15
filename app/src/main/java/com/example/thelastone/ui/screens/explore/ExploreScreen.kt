@@ -3,14 +3,38 @@ package com.example.thelastone.ui.screens.explore
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -30,24 +55,228 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.thelastone.data.model.PlaceLite
+import com.example.thelastone.ui.screens.comp.PlaceCard
+import com.example.thelastone.ui.screens.comp.SectionHeader
 import com.example.thelastone.ui.screens.comp.placedetaildialog.PlaceDetailDialog
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.PlaceActionMode
+import com.example.thelastone.ui.state.AskLocationState
+import com.example.thelastone.ui.state.EmptyState
 import com.example.thelastone.ui.state.ErrorState
 import com.example.thelastone.ui.state.LoadingState
+import com.example.thelastone.vm.ExploreUiState
 import com.example.thelastone.vm.ExploreViewModel
 import com.example.thelastone.vm.SavedViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-
-// ⬇️ 新增：定位與協程工具
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.Task
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
+import kotlin.math.ceil
+
+// 放在 ExploreScreen 同檔或 ui/state 資料夾
+sealed class SpotsStateView {
+    data object Loading : SpotsStateView()
+    data class Error(val message: String) : SpotsStateView()
+    data class Empty(val title: String, val description: String? = null) : SpotsStateView()
+    data object AskLocation : SpotsStateView()
+    data class Content(val places: List<PlaceLite>) : SpotsStateView()
+}
+
+@Composable
+private fun buildPopularState(ui: ExploreUiState): SpotsStateView {
+    return when {
+        ui.spotsLoading || !ui.spotsInitialized -> SpotsStateView.Loading
+        ui.spotsError != null -> SpotsStateView.Error(ui.spotsError ?: "熱門景點載入失敗")
+        ui.spots.isEmpty() -> SpotsStateView.Empty("目前找不到推薦景點", "建議稍後再試或調整條件")
+        else -> SpotsStateView.Content(ui.spots)
+    }
+}
+
+@Composable
+private fun buildNearbyState(
+    ui: ExploreUiState,
+    hasPermission: Boolean
+): SpotsStateView {
+    if (!hasPermission) return SpotsStateView.AskLocation
+    return when {
+        !ui.nearbyInitialized && !ui.nearbyLoading -> SpotsStateView.Loading
+        ui.nearbyLoading -> SpotsStateView.Loading
+        ui.nearbyError != null -> SpotsStateView.Error(ui.nearbyError ?: "附近景點載入失敗")
+        ui.nearby.isEmpty() -> SpotsStateView.Empty("附近沒有可推薦的景點", "建議稍後再試或檢查網路／定位狀態")
+        else -> SpotsStateView.Content(ui.nearby)
+    }
+}
+@Composable
+private fun SpotsPanel(
+    title: String,
+    state: SpotsStateView,
+    // 動作
+    onRefresh: () -> Unit,
+    onRetry: () -> Unit = onRefresh,
+    onRequestPermission: (() -> Unit)? = null,
+    onOpenSettings: (() -> Unit)? = null,
+    // 列表互動
+    savedIds: Set<String>,
+    onToggleSave: (PlaceLite) -> Unit,
+    onOpenPlace: (String) -> Unit
+) {
+    Column(Modifier.fillMaxWidth()) {
+        // 標題只畫一次
+        SectionHeader(
+            text = title,
+            large = false,
+            secondaryTone = true,
+            bottomSpace = 12.dp,
+            sticky = false,
+            trailing = {
+                IconButton(
+                    onClick = onRefresh,
+                    enabled = state is SpotsStateView.Content || state is SpotsStateView.Empty || state is SpotsStateView.Error
+                ) {
+                    if (state is SpotsStateView.Loading) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh $title")
+                    }
+                }
+            }
+        )
+
+        when (state) {
+            is SpotsStateView.Loading -> {
+                LoadingState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 140.dp),
+                    message = "景點載入中…"
+                )
+            }
+            is SpotsStateView.Error -> {
+                ErrorState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 140.dp),
+                    title = "載入失敗",
+                    message = state.message,
+                    onRetry = onRetry
+                )
+            }
+            is SpotsStateView.Empty -> {
+                EmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 140.dp),
+                    title = state.title,
+                    description = state.description
+                )
+            }
+            is SpotsStateView.AskLocation -> {
+                AskLocationState(
+                    onRequestPermission = { onRequestPermission?.invoke() },
+                    onOpenSettings = { onOpenSettings?.invoke() }
+                )
+            }
+            is SpotsStateView.Content -> {
+                SpotsPager(
+                    places = state.places,
+                    savedIds = savedIds,
+                    onToggleSave = onToggleSave,
+                    onOpenPlace = onOpenPlace
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpotsPager(
+    places: List<PlaceLite>,
+    savedIds: Set<String>,
+    onToggleSave: (PlaceLite) -> Unit,
+    onOpenPlace: (String) -> Unit,
+    itemsPerPage: Int = 3,
+    autoScroll: Boolean = true,
+    autoScrollMillis: Long = 4_000L,
+) {
+    if (places.isEmpty()) return
+
+    val pageCount = remember(places, itemsPerPage) {
+        maxOf(1, ceil(places.size / itemsPerPage.toFloat()).toInt())
+    }
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+
+    LaunchedEffect(pageCount, autoScroll, autoScrollMillis) {
+        if (!autoScroll || pageCount <= 1) return@LaunchedEffect
+        while (true) {
+            delay(autoScrollMillis)
+            if (!pagerState.isScrollInProgress) {
+                val next = (pagerState.currentPage + 1) % pageCount
+                pagerState.animateScrollToPage(next)
+            }
+        }
+    }
+
+    HorizontalPager(
+        state = pagerState,
+        pageSize = PageSize.Fill,
+        flingBehavior = PagerDefaults.flingBehavior(
+            state = pagerState,
+            pagerSnapDistance = PagerSnapDistance.atMost(1)
+        ),
+        pageNestedScrollConnection = PagerDefaults.pageNestedScrollConnection(
+            pagerState, Orientation.Horizontal
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) { page ->
+        val start = page * itemsPerPage
+        val end = minOf(start + itemsPerPage, places.size)
+        val slice = places.subList(start, end)
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            slice.forEach { p ->
+                PlaceCard(
+                    place = p,
+                    onClick = { onOpenPlace(p.placeId) },
+                    isSaved = savedIds.contains(p.placeId),
+                    onToggleSave = { onToggleSave(p) }
+                )
+            }
+            repeat(itemsPerPage - slice.size) { Spacer(Modifier.height(0.dp)) }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(pagerState.pageCount) { i ->
+            val selected = pagerState.currentPage == i
+            val size = if (selected) 8.dp else 6.dp
+            val alpha = if (selected) 1f else 0.45f
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .size(size)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+                        shape = MaterialTheme.shapes.extraSmall
+                    )
+            )
+        }
+    }
+}
 
 @Composable
 fun ExploreScreen(
@@ -60,130 +289,90 @@ fun ExploreScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 只用一份狀態（不要再另外取一個 vm/state）
     val ui by viewModel.state.collectAsState()
     val savedUi by savedVm.state.collectAsState()
     var preview by remember { mutableStateOf<PlaceLite?>(null) }
 
-    // ---- 小工具：判斷目前是否已授權 ----
     fun hasLocationPermission(): Boolean {
-        val fine = ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val coarse = ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+        val fine = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         return fine || coarse
     }
 
-    // ---- 依「目前權限狀態」載入 Spots 的統一入口 ----
-    fun reloadSpots() {
-        if (ui.spotsLoading) return // 避免重複打
-        if (hasLocationPermission()) {
-            scope.launch {
-                val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
-                if (p != null) viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
-                else viewModel.loadSpotsTaiwan()
-            }
-        } else {
-            viewModel.loadSpotsTaiwan()
-        }
-    }
-
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
+        ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         val granted = (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) ||
                 (result[Manifest.permission.ACCESS_COARSE_LOCATION] == true)
         if (granted) {
             scope.launch {
                 val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
-                if (p != null) {
-                    viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
-                } else {
-                    // 不立即降級，安排一次晚點重試
-                    delay(1500)
-                    val p2 = getLatLngWithRetries(ctx, tries = 3, intervalMs = 800)
-                    if (p2 != null) viewModel.loadSpotsAroundMe(lat = p2.lat, lng = p2.lng)
-                    else viewModel.loadSpotsTaiwan() // 最後才退回
-                }
+                if (p != null) viewModel.loadNearbyAroundMe(lat = p.lat, lng = p.lng) else viewModel.markNearbyAsUnavailable()
             }
         } else {
-            viewModel.loadSpotsTaiwan()
+            viewModel.markNearbyAsUnavailable()
         }
     }
+    val askedOnce = rememberSaveable { mutableStateOf(false) }
 
-    val askedPermissionOnce = rememberSaveable { mutableStateOf(false) }
-
-    // ⬇️ 初次進頁：也改用「重試版取位」
     LaunchedEffect(Unit) {
+        viewModel.loadSpotsTaiwan()
         if (hasLocationPermission()) {
             val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
-            if (p != null) viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
-            else viewModel.loadSpotsTaiwan()
-        } else if (!askedPermissionOnce.value) {
-            askedPermissionOnce.value = true
+            if (p != null) viewModel.loadNearbyAroundMe(lat = p.lat, lng = p.lng) else viewModel.markNearbyAsUnavailable()
+        } else if (!askedOnce.value) {
+            askedOnce.value = true
             permissionLauncher.launch(arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ))
         } else {
-            // 回到此頁且使用者已拒絕過，就直接給台灣熱門（避免再次彈窗）
-            viewModel.loadSpotsTaiwan()
+            viewModel.markNearbyAsUnavailable()
         }
     }
 
-    // ---- 監聽 ON_RESUME：偵測「無權限→有權限」的變化 ----
     val lifecycleOwner = LocalLifecycleOwner.current
-    val lastPermissionGranted = remember { mutableStateOf(hasLocationPermission()) }
-
+    val lastGranted = remember { mutableStateOf(hasLocationPermission()) }
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                val nowGranted = hasLocationPermission()
-                val wasGranted = lastPermissionGranted.value
-                lastPermissionGranted.value = nowGranted
-
-                if (nowGranted && !wasGranted) {
-                    // 權限剛變允許 → 優先嘗試附近（含重試），取不到再排背景嘗試
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) {
+                val now = hasLocationPermission()
+                val was = lastGranted.value
+                lastGranted.value = now
+                if (now && !was) {
                     scope.launch {
                         val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
-                        if (p != null) {
-                            viewModel.loadSpotsAroundMe(lat = p.lat, lng = p.lng)
-                        } else {
-                            // 背景再試一次
+                        if (p != null) viewModel.loadNearbyAroundMe(lat = p.lat, lng = p.lng)
+                        else {
                             launch {
                                 delay(2000)
                                 val p2 = getLatLngWithRetries(ctx, tries = 3, intervalMs = 800)
-                                if (p2 != null) viewModel.loadSpotsAroundMe(lat = p2.lat, lng = p2.lng)
-                                // 還是沒有 → 保持現狀（可能仍是 Taiwan），交給使用者下拉刷新再試
+                                if (p2 != null) viewModel.loadNearbyAroundMe(lat = p2.lat, lng = p2.lng)
+                                else viewModel.markNearbyAsUnavailable()
                             }
                         }
                     }
                 }
             }
         }
-        val lifecycle = lifecycleOwner.lifecycle
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer) }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    Column(
+    // ---- LazyColumn ----
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        when {
-            ui.isLoading -> LoadingState(Modifier.fillMaxSize(), "載入熱門行程中…")
-            ui.error != null -> ErrorState(
-                Modifier.fillMaxSize(),
-                ui.error!!,
-                onRetry = { viewModel.retry() } // 這是 Trips 的重試
-            )
-            else -> {
-                // Trips 區
-                TripsSection(
+        // 1) Popular Trips
+        item {
+            when {
+                ui.isLoading -> LoadingState(Modifier.fillMaxWidth(), "載入熱門行程中…")
+                ui.error != null -> ErrorState(Modifier.fillMaxWidth(), "載入熱門行程失敗", ui.error!!, onRetry = { viewModel.retry() })
+                else -> TripsSection(
                     title = "Popular Trips",
                     trips = ui.popularTrips,
                     onTripClick = openTrip,
@@ -191,43 +380,84 @@ fun ExploreScreen(
                     autoScroll = true,
                     autoScrollMillis = 4000L
                 )
+            }
+        }
 
-                if (!ui.spotsInitialized) {
-                    LoadingState(Modifier.fillMaxWidth(), "正在準備熱門景點…")
-                } else {
-                    SpotsSection(
-                        title = "Popular Spots",
-                        isLoading = ui.spotsLoading,
-                        error = ui.spotsError,
-                        places = ui.spots,
-                        onOpenPlace = { id -> preview = ui.spots.firstOrNull { it.placeId == id } },
-                        savedIds = savedUi.savedIds,
-                        onToggleSave = { place -> savedVm.toggle(place) },
-                        onRetry = { reloadSpots() },      // 失敗時重試
-                        onRefresh = { reloadSpots() }     // 👈 右上角 Refresh icon
-                    )
-                }
+        // 2) Popular Spots（統一 UI）
+        item {
+            val state = buildPopularState(ui)
+            SpotsPanel(
+                title = "Popular Spots",
+                state = state,
+                onRefresh = { viewModel.loadSpotsTaiwan() },
+                onRetry = { viewModel.loadSpotsTaiwan() },
+                savedIds = savedUi.savedIds,
+                onToggleSave = { place -> savedVm.toggle(place) },
+                onOpenPlace = { id -> preview = ui.spots.firstOrNull { it.placeId == id } }
+            )
+        }
 
-                // Dialog
-                if (preview != null) {
-                    val isSaved = savedUi.savedIds.contains(preview!!.placeId)
-                    val mode = if (isSaved) PlaceActionMode.REMOVE_FROM_FAVORITE
-                    else PlaceActionMode.ADD_TO_FAVORITE
-
-                    PlaceDetailDialog(
-                        place = preview,
-                        mode = mode,
-                        onDismiss = { preview = null },
-                        onAddToFavorite = {
-                            preview?.let { savedVm.toggle(it) }
-                            preview = null
-                        },
-                        onRemoveFromFavorite = {
-                            preview?.let { savedVm.toggle(it) }
-                            preview = null
+        // 3) Nearby Spots（統一 UI + 權限 StateView）
+        item {
+            val hasPerm = hasLocationPermission()
+            val state = buildNearbyState(ui, hasPerm)
+            SpotsPanel(
+                title = "Nearby Spots",
+                state = state,
+                onRefresh = {
+                    if (hasPerm) {
+                        scope.launch {
+                            val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
+                            if (p != null) viewModel.loadNearbyAroundMe(lat = p.lat, lng = p.lng)
+                            else viewModel.markNearbyAsUnavailable()
                         }
-                    )
-                }
+                    }
+                },
+                onRetry = {
+                    if (hasPerm) {
+                        scope.launch {
+                            val p = getLatLngWithRetries(ctx, tries = 5, intervalMs = 600)
+                            if (p != null) viewModel.loadNearbyAroundMe(lat = p.lat, lng = p.lng)
+                            else viewModel.markNearbyAsUnavailable()
+                        }
+                    }
+                },
+                onRequestPermission = {
+                    permissionLauncher.launch(arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ))
+                },
+                onOpenSettings = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", ctx.packageName, null)
+                    }
+                    ctx.startActivity(intent)
+                },
+                savedIds = savedUi.savedIds,
+                onToggleSave = { place -> savedVm.toggle(place) },
+                onOpenPlace = { id -> preview = ui.nearby.firstOrNull { it.placeId == id } }
+            )
+        }
+
+        // Dialog 區
+        item {
+            if (preview != null) {
+                val isSaved = savedUi.savedIds.contains(preview!!.placeId)
+                val mode = if (isSaved) PlaceActionMode.REMOVE_FROM_FAVORITE else PlaceActionMode.ADD_TO_FAVORITE
+                PlaceDetailDialog(
+                    place = preview,
+                    mode = mode,
+                    onDismiss = { preview = null },
+                    onAddToFavorite = {
+                        preview?.let { savedVm.toggle(it) }
+                        preview = null
+                    },
+                    onRemoveFromFavorite = {
+                        preview?.let { savedVm.toggle(it) }
+                        preview = null
+                    }
+                )
             }
         }
     }

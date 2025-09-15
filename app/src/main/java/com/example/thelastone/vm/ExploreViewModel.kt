@@ -22,8 +22,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SpotsSource { TAIWAN, AROUND_ME }
-
 data class ExploreUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
@@ -32,15 +30,18 @@ data class ExploreUiState(
     val popularTrips: List<Trip> = emptyList(),
     val isRefreshing: Boolean = false,
 
-    // Spots
+    // Popular Spots（全台，不需定位）
     val spots: List<PlaceLite> = emptyList(),
     val spotsLoading: Boolean = false,
     val spotsError: String? = null,
     val spotsInitialized: Boolean = false,
-    val spotsSource: SpotsSource = SpotsSource.TAIWAN // 👈 新增
+
+    // Nearby Spots（需定位）
+    val nearby: List<PlaceLite> = emptyList(),
+    val nearbyLoading: Boolean = false,
+    val nearbyError: String? = null,
+    val nearbyInitialized: Boolean = false
 )
-
-
 
 // ExploreViewModel.kt
 @HiltViewModel
@@ -97,39 +98,18 @@ class ExploreViewModel @Inject constructor(
 
     // ====== 你要的新方法 ======
 
-    /** 使用者同意定位後：載入使用者附近 */
-    fun loadSpotsAroundMe(
-        userId: String? = null,
-        limit: Int = 30,
-        lat: Double,
-        lng: Double,
-        radiusMeters: Int = 5000,
-        openNow: Boolean? = null
-    ) {
-        viewModelScope.launch {
-            _state.update { it.copy(spotsLoading = true, spotsError = null) }
-            runCatching {
-                spotRepo.getRecommendedSpots(userId, limit, lat, lng, radiusMeters, openNow)
-            }.onSuccess { list ->
-                _state.update { it.copy(spots = list, spotsLoading = false, spotsInitialized = true, spotsSource = SpotsSource.AROUND_ME) }
-            }.onFailure { e ->
-                _state.update {
-                    it.copy(
-                        spotsError = e.message ?: "熱門景點載入失敗",
-                        spotsLoading = false,
-                        spotsInitialized = true // ✅ 失敗也算已初始化，避免顯示「重試」閃爍
-                    )
-                }
-            }
-        }
-    }
-
     fun loadSpotsTaiwan(userId: String? = null, limit: Int = 30) {
         viewModelScope.launch {
             _state.update { it.copy(spotsLoading = true, spotsError = null) }
             runCatching { spotRepo.getTaiwanPopularSpots(userId, limit) }
                 .onSuccess { list ->
-                    _state.update { it.copy(spots = list, spotsLoading = false, spotsInitialized = true, spotsSource = SpotsSource.TAIWAN) }
+                    _state.update {
+                        it.copy(
+                            spots = list,
+                            spotsLoading = false,
+                            spotsInitialized = true
+                        )
+                    }
                 }
                 .onFailure { e ->
                     _state.update {
@@ -141,5 +121,43 @@ class ExploreViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    /** 供第 3 區塊使用：載入附近熱門（需定位） */
+    fun loadNearbyAroundMe(
+        userId: String? = null,
+        limit: Int = 30,
+        lat: Double,
+        lng: Double,
+        radiusMeters: Int = 5000,
+        openNow: Boolean? = null
+    ) {
+        viewModelScope.launch {
+            _state.update { it.copy(nearbyLoading = true, nearbyError = null) }
+            runCatching {
+                spotRepo.getRecommendedSpots(userId, limit, lat, lng, radiusMeters, openNow)
+            }.onSuccess { list ->
+                _state.update {
+                    it.copy(
+                        nearby = list,
+                        nearbyLoading = false,
+                        nearbyInitialized = true
+                    )
+                }
+            }.onFailure { e ->
+                _state.update {
+                    it.copy(
+                        nearbyError = e.message ?: "附近景點載入失敗",
+                        nearbyLoading = false,
+                        nearbyInitialized = true
+                    )
+                }
+            }
+        }
+    }
+
+    /** 沒有定位或拿不到座標時，可以清空 nearby 狀態但標記為初始化 */
+    fun markNearbyAsUnavailable() {
+        _state.update { it.copy(nearby = emptyList(), nearbyInitialized = true, nearbyLoading = false, nearbyError = null) }
     }
 }
