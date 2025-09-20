@@ -121,4 +121,14 @@ class TripChatViewModel @Inject constructor(
     fun onSelectSuggestion(place: PlaceLite) = viewModelScope.launch {
         chatRepo.send(tripId, "選擇：${place.name}")
     }
+
+    fun refresh() {
+        viewModelScope.launch {
+            try {
+                chatRepo.refresh(tripId)
+            } catch (_: Exception) {
+                // TODO: 錯誤處理
+            }
+        }
+    }
 }
