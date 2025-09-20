@@ -33,7 +33,6 @@ fun TripChatScreen(
     viewModel: TripChatViewModel = hiltViewModel()
 ) {
     val s by viewModel.state.collectAsState()
-
     when (val st = s) {
         is ChatUiState.Loading -> LoadingState(modifier = Modifier.fillMaxSize().padding(padding))
         is ChatUiState.Error   -> ErrorState(modifier = Modifier.fillMaxSize().padding(padding), message = st.message, onRetry = {})
@@ -44,13 +43,14 @@ fun TripChatScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)              // ← 關鍵：只吃 Scaffold 的 padding
+                    .padding(padding)
+                    .consumeWindowInsets(padding)   // 避免 inset 疊加
+                    .imePadding()                   // ★ 整個聊天區塊跟著鍵盤縮
             ) {
-                // 訊息清單
                 MessagesList(
                     modifier = Modifier.weight(1f),
                     messages = st.messages,
-                    myId = st.myId,                        // ← 這裡
+                    myId = st.myId,
                     onSelectSuggestion = viewModel::onSelectSuggestion
                 )
 
@@ -73,14 +73,12 @@ fun TripChatScreen(
                     )
                 }
 
-                // 輸入列：加上 imePadding 讓鍵盤頂起來時不被遮住
                 ChatInputBar(
                     value = st.input,
                     onValueChange = viewModel::updateInput,
                     onSend = viewModel::send,
                     modifier = Modifier
-                        .imePadding()               // ← 鍵盤彈出時自動避讓
-                        .navigationBarsPadding()    // ← 全螢幕下靠近底部也能避開
+                        .fillMaxWidth()
                 )
             }
         }
