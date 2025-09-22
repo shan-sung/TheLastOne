@@ -56,6 +56,8 @@ object MiscRoutes {
 
     const val SearchUsers  = "search/users"
     const val EditProfile  = "profile/edit"
+    const val Filter = "explore/filter"
+
 }
 
 data class TopLevelDestination(

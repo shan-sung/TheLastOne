@@ -2,12 +2,10 @@ package com.example.thelastone.data.repo.impl
 
 import com.example.thelastone.data.local.SavedPlaceDao
 import com.example.thelastone.data.local.SavedPlaceEntity
-import com.example.thelastone.data.model.Place
 import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.SavedPlace
 import com.example.thelastone.data.repo.SavedRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -20,7 +18,6 @@ class SavedRepositoryImpl @Inject constructor(
     override fun observeIds(): Flow<Set<String>> =
         dao.observeIds().map { it.toSet() }
 
-    // SavedRepositoryImpl.observeAll()
     override fun observeAll(): Flow<List<SavedPlace>> =
         dao.observeAll().map { list ->
             list.map { e ->
@@ -32,24 +29,24 @@ class SavedRepositoryImpl @Inject constructor(
                 SavedPlace(
                     id = e.placeId,
                     userId = "local",
-                    place = Place(
+                    place = PlaceLite(               // ← 直接放 PlaceLite
                         placeId = e.placeId,
                         name = e.name,
-                        rating = e.rating,
-                        userRatingsTotal = e.userRatingsTotal,
-                        address = e.address,
                         lat = e.lat,
                         lng = e.lng,
+                        address = e.address,
+                        rating = e.rating,
+                        userRatingsTotal = e.userRatingsTotal,
                         photoUrl = e.photoUrl,
                         openingHours = hours,
-                        openNow = e.openNow,                   // ✅ 帶回
-                        openStatusText = e.openStatusText,     // ✅ 帶回
-                        miniMapUrl = null
+                        openNow = e.openNow,
+                        openStatusText = e.openStatusText
                     ),
                     savedAt = e.savedAt
                 )
             }
         }
+
 
 
     override suspend fun save(place: PlaceLite) {

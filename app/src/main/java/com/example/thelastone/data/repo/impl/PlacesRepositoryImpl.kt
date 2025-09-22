@@ -70,7 +70,6 @@ class PlacesRepositoryImpl @Inject constructor(
         )
         return mapApiPlacesToLite(resp.places)
     }
-
     override suspend fun fetchDetails(placeId: String): PlaceDetails {
         // 這裡不要加 "places/"
         val apiPlace = api.fetchDetails(placeId = placeId)
@@ -95,13 +94,14 @@ class PlacesRepositoryImpl @Inject constructor(
             rating = apiPlace.rating,
             userRatingsTotal = apiPlace.userRatingCount,
             photoUrl = photoUrl,
-            types = emptyList(),
+            types = apiPlace.types.orEmpty(),               // ← 帶入 types
             websiteUri = apiPlace.websiteUri,
             nationalPhoneNumber = apiPlace.nationalPhoneNumber,
             priceLevel = apiPlace.priceLevel,
-            openingHours = apiPlace.currentOpeningHours?.weekdayDescriptions.orEmpty(),
+            openingHours = apiPlace.currentOpeningHours?.weekdayDescriptions
+                ?: apiPlace.regularOpeningHours?.weekdayDescriptions.orEmpty(), // ← fallback
             openNow = status?.openNow ?: apiPlace.currentOpeningHours?.openNow,
-            openStatusText = status?.text
+            openStatusText = status?.text,
         )
     }
 
@@ -135,7 +135,8 @@ class PlacesRepositoryImpl @Inject constructor(
                 photoUrl = photoUrl,
                 openingHours = p.currentOpeningHours?.weekdayDescriptions ?: emptyList(),
                 openNow = status?.openNow ?: p.currentOpeningHours?.openNow,
-                openStatusText = status?.text
+                openStatusText = status?.text,
+                types = p.types.orEmpty()
             )
         }
 }

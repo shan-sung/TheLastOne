@@ -8,25 +8,24 @@ import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Path
 
+// ✅ 列表 API（searchText / searchNearby）用這組
+private const val PLACES_LIST_FIELD_MASK =
+    "places.id,places.displayName,places.formattedAddress,places.location," +
+            "places.rating,places.userRatingCount,places.photos.name,places.businessStatus," +
+            "places.types,places.utcOffsetMinutes," + // ← 一定要有 types，才好做本地類別過濾
+            "places.currentOpeningHours.openNow,places.currentOpeningHours.periods," +
+            "places.currentOpeningHours.weekdayDescriptions"
+
+// ✅ nearby 同樣（其實可以跟上面共用）
+private const val PLACES_NEARBY_FIELD_MASK = PLACES_LIST_FIELD_MASK
+
+// ✅ 細節 API（fetchDetails）才放 regularOpeningHours
 private const val PLACES_DETAILS_FIELD_MASK =
     "id,displayName,formattedAddress,shortFormattedAddress,location," +
             "rating,userRatingCount,photos.name,businessStatus,types," +
             "websiteUri,nationalPhoneNumber,priceLevel,utcOffsetMinutes," +
             "currentOpeningHours.openNow,currentOpeningHours.periods,currentOpeningHours.weekdayDescriptions," +
-            "regularOpeningHours.periods"
-
-private const val PLACES_LIST_FIELD_MASK =
-    "places.id,places.displayName,places.formattedAddress,places.location," +
-            "places.rating,places.userRatingCount,places.photos.name,places.businessStatus," +
-            "places.utcOffsetMinutes,places.currentOpeningHours.openNow,places.currentOpeningHours.periods," +
-            "places.currentOpeningHours.weekdayDescriptions,places.regularOpeningHours.periods"
-
-private const val PLACES_NEARBY_FIELD_MASK =
-    "places.id,places.displayName,places.formattedAddress,places.location," +
-            "places.rating,places.userRatingCount,places.photos.name,places.businessStatus," +
-            "places.utcOffsetMinutes,places.currentOpeningHours.openNow,places.currentOpeningHours.periods," +
-            "places.currentOpeningHours.weekdayDescriptions,places.regularOpeningHours.periods"
-
+            "regularOpeningHours.periods,regularOpeningHours.weekdayDescriptions"
 
 interface PlacesApi {
     @POST("v1/places:searchText")
@@ -114,7 +113,6 @@ data class SearchNearbyBody(
     val regionCode: String? = null
 )
 
-@Serializable data class LocationRestriction(val circle: Circle)
 @Serializable
 data class SearchNearbyResponse(
     val places: List<ApiPlace>?   // ✅ 這裡要是 ApiPlace（remote DTO）

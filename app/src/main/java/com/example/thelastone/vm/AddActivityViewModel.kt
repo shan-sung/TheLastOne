@@ -6,8 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.Trip
-import com.example.thelastone.data.model.toFull
-import com.example.thelastone.data.model.toLite
 import com.example.thelastone.data.repo.TripRepository
 import com.example.thelastone.utils.decodePlaceArg
 import com.example.thelastone.utils.findDayIndexByDate
@@ -25,7 +23,6 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 import javax.inject.Inject
 
-// ui/add/AddActivityUiState.kt
 data class AddActivityUiState(
     val phase: Phase = Phase.Loading,
     val trip: Trip? = null,
@@ -34,7 +31,7 @@ data class AddActivityUiState(
     val startTime: String? = null,
     val endTime: String? = null,
     val note: String? = null,
-    val submitting: Boolean = false,   // 提交中 spinner/disabled 用
+    val submitting: Boolean = false,
 ) {
     sealed interface Phase {
         data object Loading : Phase
@@ -57,7 +54,7 @@ class AddActivityViewModel @Inject constructor(
     private val placeLiteFromArg: PlaceLite? =
         savedStateHandle.get<String>("placeJson")?.let { decodePlaceArg(it) }
 
-    // ✅ 全面改成以 activityId 判斷模式
+    // 以 activityId 判斷模式
     sealed class Mode {
         data object Add : Mode()
         data class Edit(val activityId: String) : Mode()
@@ -107,7 +104,7 @@ class AddActivityViewModel @Inject constructor(
                                 phase = AddActivityUiState.Phase.Ready,
                                 trip = t,
                                 selectedDateMillis = millis,
-                                place = act.place.toLite(),
+                                place = act.place,          // ← 直接用 PlaceLite，移除 toLite()
                                 startTime = act.startTime,
                                 endTime   = act.endTime,
                                 note      = act.note
@@ -121,21 +118,15 @@ class AddActivityViewModel @Inject constructor(
             }
     }
 
-    // 讓外部（AddActivityScreen）可直接呼叫（你已經有 stub，就沿用）
-    suspend fun loadForEdit(tripId: String, activityId: String) {
-        // 這裡可直接呼叫 reload()，因為 Mode 已由 savedStateHandle 決定
-        reload()
-    }
+    suspend fun loadForEdit(tripId: String, activityId: String) { reload() }
 
     fun initForCreate(tripId: String, placeJson: String) {
-        // 如需要額外初始化，可在這裡解析 placeJson 後 setState；
-        // 你也可以只靠上面的 placeLiteFromArg 完成預填，不一定要動這裡。
+        // 目前由 placeLiteFromArg 完成預填；需要時可在此解碼並 setState
     }
-    // AddActivityViewModel.kt
+
     fun fail(message: String) {
         _state.update { it.copy(phase = AddActivityUiState.Phase.Error(message)) }
     }
-
 
     fun updateDate(millis: Long?)   { _state.update { it.copy(selectedDateMillis = millis) } }
     fun updateStartTime(v: String?) { _state.update { it.copy(startTime = v?.ifBlank { null }) } }
@@ -159,7 +150,7 @@ class AddActivityViewModel @Inject constructor(
             Mode.Add -> {
                 val act = Activity(
                     id = UUID.randomUUID().toString(),
-                    place = (s.place ?: placeLiteFromArg)!!.toFull(),
+                    place = (s.place ?: placeLiteFromArg)!!,   // ← 移除 toFull()
                     startTime = s.startTime,
                     endTime = s.endTime,
                     note = s.note
@@ -174,7 +165,6 @@ class AddActivityViewModel @Inject constructor(
                     }
             }
             is Mode.Edit -> {
-                // ✅ 先用 activityId 找到目前索引與舊資料
                 val pos = findActivityPositionAndDate(t, m.activityId)
                 if (pos == null) {
                     _state.update { it.copy(submitting = false, phase = AddActivityUiState.Phase.Error("找不到活動")) }
@@ -183,7 +173,7 @@ class AddActivityViewModel @Inject constructor(
                 val (oldDayIndex, oldActIndex, act0, _) = pos
 
                 val updated = act0.copy(
-                    // 若要允許改地點，這裡可以用 (s.place ?: act0.place.toLite()).toFull()
+                    // 若要允許改地點，可用 place = (s.place ?: act0.place)
                     startTime = s.startTime,
                     endTime = s.endTime,
                     note = s.note
@@ -193,8 +183,6 @@ class AddActivityViewModel @Inject constructor(
                     if (newDayIndex == oldDayIndex) {
                         repo.updateActivity(tripId, oldDayIndex, oldActIndex, updated)
                     } else {
-                        // 日期有變：先刪舊 → 再以同一 activityId（或新的）加到新的一天
-                        // 若後端允許保留 id，可用 updated（同 id）；否則產新 id
                         repo.removeActivity(tripId, oldDayIndex, oldActIndex)
                         repo.addActivity(tripId, newDayIndex, updated)
                     }
@@ -218,12 +206,7 @@ class AddActivityViewModel @Inject constructor(
             val aIdx = day.activities.indexOfFirst { it.id == activityId }
             if (aIdx >= 0) {
                 val act = day.activities[aIdx]
-                val dayDate = when (val d = day.date) {
-                    is String -> LocalDate.parse(d, DATE_FMT)
-                    is java.time.LocalDate -> d
-                    is java.time.LocalDateTime -> d.toLocalDate()
-                    else -> LocalDate.parse(d.toString(), DATE_FMT)
-                }
+                val dayDate = LocalDate.parse(day.date, DATE_FMT)
                 return Quadruple(dIdx, aIdx, act, dayDate)
             }
         }

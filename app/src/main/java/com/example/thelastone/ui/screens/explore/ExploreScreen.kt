@@ -65,7 +65,8 @@ fun ExploreScreen(
     savedVm: SavedViewModel = hiltViewModel(),
     padding: PaddingValues = PaddingValues(0.dp),
     openTrip: (String) -> Unit = {},
-    openPlace: (String) -> Unit = {}
+    openPlace: (String) -> Unit = {},
+    openFilter: () -> Unit = {}
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -150,49 +151,30 @@ fun ExploreScreen(
             }
         }
 
-        // 2) Popular Spots（統一 UI）
-        // Popular Spots（統一 UI）
         item {
-            val state = buildPopularState(ui)
-            // NEW: 控制是否顯示篩選面板
-            var showFilter by rememberSaveable { mutableStateOf(false) }
-
+            // Popular
+            val popularState = buildPopularState(ui)
             SpotsPanel(
                 title = "Popular Spots",
-                state = state,
+                state = popularState,
                 onRefresh = { viewModel.loadSpotsTaiwan() },
-                onRetry = { viewModel.loadSpotsTaiwan() },
+                onRetry   = { viewModel.loadSpotsTaiwan() },
                 savedIds = savedUi.savedIds,
                 onToggleSave = { place -> savedVm.toggle(place) },
-                onOpenPlace = { place -> preview = place },   // ← 直接放進 preview
-                trailingType = SpotsTrailing.Filter,
-                onClickTrailing = { showFilter = true },
-                trailingEnabled = state !is SpotsStateView.Loading
+                onOpenPlace  = { place -> preview = place },
+                trailingType = SpotsTrailing.More,
+                onClickTrailing = openFilter   // 你目前用它導頁即可
             )
-
-            // 這裡你可以放 BottomSheet/Dialog 做篩選 UI（示意）
-            if (showFilter) {
-                // FilterBottomSheet(...) { appliedFilters ->
-                //     viewModel.applySpotFilters(appliedFilters)
-                //     showFilter = false
-                // }
-                // 先佔位：
-                LaunchedEffect(Unit) {
-                    // TODO: 開你自己的篩選介面
-                    showFilter = false
-                }
-            }
         }
-
 
         // 3) Nearby Spots（統一 UI + 權限 StateView）
         item {
+            // Nearby
             val hasPerm = ctx.hasLocationPermission()
-            val state = buildNearbyState(ui, hasPerm)
-
+            val nearbyState = buildNearbyState(ui, hasPerm)
             SpotsPanel(
                 title = "Nearby Spots",
-                state = state,
+                state = nearbyState,
                 onRefresh = { if (hasPerm) scope.launch { refreshNearby(ctx, viewModel) } },
                 onRetry   = { if (hasPerm) scope.launch { refreshNearby(ctx, viewModel) } },
                 onRequestPermission = { askForLocation(permissionLauncher) },
@@ -203,10 +185,9 @@ fun ExploreScreen(
                 },
                 savedIds = savedUi.savedIds,
                 onToggleSave = { place -> savedVm.toggle(place) },
-                onOpenPlace = { place -> preview = place },   // ← 同樣直接設置
+                onOpenPlace  = { place -> preview = place },
                 trailingType = SpotsTrailing.Refresh,
-                onClickTrailing = { if (hasPerm) scope.launch { refreshNearby(ctx, viewModel) } },
-                trailingEnabled = state !is SpotsStateView.Loading
+                onClickTrailing = { if (hasPerm) scope.launch { refreshNearby(ctx, viewModel) } }
             )
         }
 

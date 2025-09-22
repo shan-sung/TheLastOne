@@ -61,6 +61,7 @@ import com.example.thelastone.ui.screens.SearchPlacesScreen
 import com.example.thelastone.ui.screens.SearchUsersScreen
 import com.example.thelastone.ui.screens.TripChatScreen
 import com.example.thelastone.ui.screens.TripDetailScreen
+import com.example.thelastone.ui.screens.explore.FilterScreen
 import com.example.thelastone.ui.screens.form.CreateTripFormScreen
 import com.example.thelastone.ui.screens.myTrips.MyTripsScreen
 import com.example.thelastone.utils.encodePlaceArg
@@ -112,7 +113,13 @@ fun MainScaffold(nav: NavHostController) {
         containerColor = MaterialTheme.colorScheme.surface,      // MTB: app 殼 = surface
         contentColor   = MaterialTheme.colorScheme.onSurface,
         topBar = {
-            if (currentDest?.route !in setOf(MiscRoutes.SearchPlaces, MiscRoutes.SearchPlacesPick, MiscRoutes.SearchUsers)) {
+            if (
+                currentDest?.route !in setOf(
+                MiscRoutes.SearchPlaces,
+                MiscRoutes.SearchPlacesPick,
+                MiscRoutes.SearchUsers
+                )
+            ) {
                 AppTopBar(
                     destination = currentDest,
                     isTopLevel = isTopLevel,
@@ -170,10 +177,12 @@ private fun MainNavHost(
         composable(Root.Explore.route) {
             ExploreScreen(
                 padding = padding,
-                openPlace = { placeId -> /* 之後做附近景點用 */ },
-                openTrip = { tripId -> nav.navigate(TripRoutes.detail(tripId)) }
+                openPlace = { /* TODO */ },
+                openTrip = { tripId -> nav.navigate(TripRoutes.detail(tripId)) },
+                openFilter = { nav.navigate(MiscRoutes.Filter) }   // ★ 傳入
             )
         }
+
         composable(Root.MyTrips.route) {
             MyTripsScreen(padding = padding, openTrip = { id -> nav.navigate(TripRoutes.detail(id)) })
         }
@@ -332,6 +341,14 @@ private fun MainNavHost(
                 }
             )
         }
+
+        composable(MiscRoutes.Filter) {
+            FilterScreen(
+                padding = padding,            // ← 傳入
+                onBack = { nav.navigateUp() },
+                onApply = { /* 不做事：留在本頁 */ }   // 或直接傳 {}
+            )
+        }
     }
 }
 
@@ -368,6 +385,7 @@ private fun AppTopBar(
         MiscRoutes.SearchPlaces -> "Search Places"
         MiscRoutes.SearchUsers  -> "Search Users"
         MiscRoutes.EditProfile  -> "Edit Profile"
+        MiscRoutes.Filter       -> "Today's Recommend Spots"
         else -> ""
     }
 
@@ -390,6 +408,11 @@ private fun AppTopBar(
         actions = {
             when (route) {
                 Root.Explore.route -> {
+                    IconButton(onClick = onExploreSearch) {
+                        Icon(Icons.Filled.Search, contentDescription = "Search places")
+                    }
+                }
+                MiscRoutes.Filter -> { // ← 新增這行
                     IconButton(onClick = onExploreSearch) {
                         Icon(Icons.Filled.Search, contentDescription = "Search places")
                     }
@@ -437,7 +460,8 @@ private val NO_BOTTOM_BAR_ROUTES = setOf(
     MiscRoutes.EditProfile,
     TripRoutes.PickPlace,
     TripRoutes.AddActivity,
-    TripRoutes.EditActivity
+    TripRoutes.EditActivity,
+    MiscRoutes.Filter
 )
 @Composable
 private fun AppBottomBar(

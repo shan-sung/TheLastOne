@@ -1,6 +1,9 @@
 package com.example.thelastone.data.repo.impl
 
-import com.example.thelastone.data.model.*
+import com.example.thelastone.data.model.Alternative
+import com.example.thelastone.data.model.PlaceLite
+import com.example.thelastone.data.model.StartInfo
+import com.example.thelastone.data.model.WeatherInfo
 import com.example.thelastone.data.repo.StartRepository
 import kotlinx.coroutines.delay
 import kotlin.math.absoluteValue
@@ -8,22 +11,23 @@ import kotlin.random.Random
 
 class StartRepositoryFake : StartRepository {
 
-    override suspend fun getStartInfo(place: Place): StartInfo {
+    override suspend fun getStartInfo(place: PlaceLite): StartInfo {
         // 模擬網路延遲
         delay(450)
 
         // 假天氣（依 placeId 做 deterministic 隨機）
         val seed = place.placeId.hashCode().absoluteValue
         val rnd = Random(seed)
-        val temp = 24 + rnd.nextInt(10)      // 24~33
+
+        val temp = 24 + rnd.nextInt(10)         // 24~33
         val rain = listOf(null, 10, 20, 30, 40, 50).random(rnd)
         val summary = listOf("晴朗", "多雲", "多雲時晴", "午後雷陣雨", "陰時雨").random(rnd)
 
         val openNow = listOf(true, false, null).random(rnd)
         val status = when (openNow) {
-            true -> "營業中 · 至 21:00"
+            true  -> "營業中 · 至 21:00"
             false -> "已打烊 · 明天 10:00 開"
-            null -> null
+            null  -> null
         }
 
         val hours = listOf(

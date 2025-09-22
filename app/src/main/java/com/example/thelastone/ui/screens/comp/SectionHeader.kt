@@ -28,10 +28,9 @@ fun SectionHeader(
     sticky: Boolean = false,
     trailing: @Composable (() -> Unit)? = null // 👈 新增
 ) {
-    val typography = MaterialTheme.typography
     val color = if (secondaryTone) MaterialTheme.colorScheme.onSurfaceVariant
     else MaterialTheme.colorScheme.onSurface
-    val baseStyle = if (large) typography.headlineSmall else typography.titleMedium
+    val baseStyle = if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium
 
     val bgModifier = if (sticky) {
         modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)

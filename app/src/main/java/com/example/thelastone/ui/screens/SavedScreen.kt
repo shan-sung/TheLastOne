@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.thelastone.data.model.PlaceLite
-import com.example.thelastone.data.model.toLite
 import com.example.thelastone.ui.screens.comp.PlaceCard
 import com.example.thelastone.ui.screens.comp.placedetaildialog.PlaceDetailDialogHost
 import com.example.thelastone.ui.screens.comp.placedetaildialog.comp.PlaceActionMode
@@ -56,9 +55,9 @@ fun SavedScreen(
                 ) {
                     items(
                         items = ui.items,
-                        key = { it.id } // ← 穩定 key
+                        key = { it.id }
                     ) { sp ->
-                        val p = sp.place.toLite()
+                        val p = sp.place                         // ← 直接用 Lite
                         PlaceCard(
                             place = p,
                             onClick = { preview = p },

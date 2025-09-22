@@ -3,7 +3,7 @@ package com.example.thelastone.data.repo.impl.fake
 import com.example.thelastone.data.model.Activity
 import com.example.thelastone.data.model.AgeBand
 import com.example.thelastone.data.model.DaySchedule
-import com.example.thelastone.data.model.Place
+import com.example.thelastone.data.model.PlaceLite
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.model.TripForm
 import com.example.thelastone.data.model.TripVisibility
@@ -339,7 +339,7 @@ class FakeTripRepository @Inject constructor(
         return (1..count).map { idx ->
             val rating = if (preferHighRating) Random.nextDouble(4.2, 4.9) else Random.nextDouble(3.5, 4.8)
             val (st, en) = randTimeInRange()
-            val place = Place(
+            val place = PlaceLite(               // ← 這裡改成 PlaceLite
                 placeId = "gplace_${date}_$idx",
                 name = "Place $idx",
                 rating = rating,
@@ -348,8 +348,7 @@ class FakeTripRepository @Inject constructor(
                 openingHours = listOf("Mon–Sun: 09:00–18:00"),
                 lat = 25.0 + Random.nextDouble(-0.2, 0.2),
                 lng = 121.0 + Random.nextDouble(-0.2, 0.2),
-                photoUrl = null,
-                miniMapUrl = null
+                photoUrl = null
             )
             Activity(
                 id = "act_${UUID.randomUUID()}",

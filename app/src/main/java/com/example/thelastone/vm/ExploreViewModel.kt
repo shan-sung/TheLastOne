@@ -3,6 +3,7 @@ package com.example.thelastone.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.thelastone.data.model.PlaceLite
+import com.example.thelastone.data.model.SpotFilters
 import com.example.thelastone.data.model.Trip
 import com.example.thelastone.data.repo.SpotRepository
 import com.example.thelastone.data.repo.TripRepository
@@ -40,7 +41,12 @@ data class ExploreUiState(
     val nearby: List<PlaceLite> = emptyList(),
     val nearbyLoading: Boolean = false,
     val nearbyError: String? = null,
-    val nearbyInitialized: Boolean = false
+    val nearbyInitialized: Boolean = false,
+
+    val filters: SpotFilters = SpotFilters(),
+    val filtered: List<PlaceLite> = emptyList(),   // 篩選結果（顯示在 Filter 畫面或返回 Explore）
+    val filtering: Boolean = false,
+    val filteringError: String? = null
 )
 
 // ExploreViewModel.kt
@@ -87,7 +93,6 @@ class ExploreViewModel @Inject constructor(
                 }
             }.collect { _state.value = it }
         }
-        // Spots 由畫面決定（有權限就附近，沒權限就台灣熱門）
     }
 
     fun refresh() {
@@ -96,7 +101,6 @@ class ExploreViewModel @Inject constructor(
     }
     fun retry() = refresh()
 
-    // ====== 你要的新方法 ======
 
     fun loadSpotsTaiwan(userId: String? = null, limit: Int = 30) {
         viewModelScope.launch {
@@ -129,7 +133,7 @@ class ExploreViewModel @Inject constructor(
         limit: Int = 30,
         lat: Double,
         lng: Double,
-        radiusMeters: Int = 5000,
+        radiusMeters: Int = 2000,
         openNow: Boolean? = null
     ) {
         viewModelScope.launch {
@@ -156,6 +160,20 @@ class ExploreViewModel @Inject constructor(
         }
     }
 
+    fun applyFilters(filters: SpotFilters, limit: Int = 30) {
+        viewModelScope.launch {
+            _state.update { it.copy(filtering = true, filteringError = null, filters = filters) }
+            runCatching { spotRepo.getFilteredSpots(filters, limit) }
+                .onSuccess { list ->
+                    _state.update { it.copy(filtering = false, filtered = list) }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(filtering = false, filteringError = e.message ?: "篩選失敗")
+                    }
+                }
+        }
+    }
     /** 沒有定位或拿不到座標時，可以清空 nearby 狀態但標記為初始化 */
     fun markNearbyAsUnavailable() {
         _state.update { it.copy(nearby = emptyList(), nearbyInitialized = true, nearbyLoading = false, nearbyError = null) }

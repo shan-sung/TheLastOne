@@ -27,9 +27,9 @@ data class DaySchedule(
 
 data class Activity(
     val id: String,
-    val place: Place,
-    val startTime: String? = null,  // "09:00"
-    val endTime: String? = null,    // "11:30"
+    val place: PlaceLite,          // ← 這裡改型別
+    val startTime: String? = null,
+    val endTime: String? = null,
     val note: String? = null
 )
 

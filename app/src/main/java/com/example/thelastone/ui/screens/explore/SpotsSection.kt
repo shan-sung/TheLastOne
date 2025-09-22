@@ -19,6 +19,7 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +42,7 @@ import com.example.thelastone.ui.state.LoadingState
 import com.example.thelastone.vm.ExploreUiState
 import kotlin.math.ceil
 
-enum class SpotsTrailing { Refresh, Filter, None }
+enum class SpotsTrailing { Refresh, More }
 
 /* ========== 1) State 定義 ========== */
 sealed class SpotsStateView {
@@ -73,25 +74,26 @@ fun buildNearbyState(
     }
 }
 
-/* ========== 3) SpotsPanel：單一責任的版塊元件 ========== */
 @Composable
 fun SpotsPanel(
     title: String,
     state: SpotsStateView,
-    // 動作
     onRefresh: () -> Unit,
     onRetry: () -> Unit = onRefresh,
     onRequestPermission: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
-    // 列表互動
     savedIds: Set<String>,
     onToggleSave: (PlaceLite) -> Unit,
     onOpenPlace: (PlaceLite) -> Unit,
-    // NEW ↓↓↓
-    trailingType: SpotsTrailing = SpotsTrailing.Refresh,
-    onClickTrailing: () -> Unit = onRefresh,
-    trailingEnabled: Boolean = state !is SpotsStateView.Loading
+    trailingType: SpotsTrailing,
+    onClickTrailing: () -> Unit
 ) {
+    // 統一 enabled 規則
+    val trailingEnabled = when (trailingType) {
+        SpotsTrailing.More -> state is SpotsStateView.Content && state.places.isNotEmpty()
+        SpotsTrailing.Refresh -> state !is SpotsStateView.Loading && state !is SpotsStateView.AskLocation
+    }
+
     Column(Modifier.fillMaxWidth()) {
         SectionHeader(
             text = title,
@@ -100,23 +102,14 @@ fun SpotsPanel(
             bottomSpace = 12.dp,
             sticky = false,
             trailing = {
-                when (trailingType) {
-                    SpotsTrailing.None -> Unit
-                    SpotsTrailing.Refresh -> {
-                        IconButton(onClick = onClickTrailing, enabled = trailingEnabled) {
-                            if (!trailingEnabled) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Outlined.Refresh, contentDescription = "Refresh $title")
-                            }
-                        }
-                    }
-                    SpotsTrailing.Filter -> {
-                        IconButton(onClick = onClickTrailing, enabled = trailingEnabled) {
-                            Icon(
-                                imageVector = Icons.Outlined.FilterList, // or Icons.Outlined.FilterAlt
-                                contentDescription = "Filter $title"
-                            )
+                IconButton(onClick = onClickTrailing, enabled = trailingEnabled) {
+                    // 只有 Loading 顯示轉圈
+                    if (state is SpotsStateView.Loading) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        when (trailingType) {
+                            SpotsTrailing.Refresh -> Icon(Icons.Outlined.Refresh, contentDescription = "Refresh $title")
+                            SpotsTrailing.More    -> Icon(Icons.Filled.ArrowForward, contentDescription = "More $title")
                         }
                     }
                 }
@@ -147,7 +140,7 @@ fun SpotsPanel(
                 places = state.places,
                 savedIds = savedIds,
                 onToggleSave = onToggleSave,
-                onOpenPlace = onOpenPlace   // 型別已是 (PlaceLite) -> Unit
+                onOpenPlace = onOpenPlace
             )
         }
     }

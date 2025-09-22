@@ -29,7 +29,7 @@ class StartFlowViewModel @Inject constructor(
     private var currentPlaceId: String? = null
     private var currentPage: Int = 0
 
-    fun start(place: Place) {
+    fun start(place: PlaceLite) {
         currentPlaceId = place.placeId
         _ui.value = StartUiState.Loading
         viewModelScope.launch {
