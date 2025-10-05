@@ -154,7 +154,7 @@ fun TripDetailScreen(
                         sheetRef = null
                     },
                     onDelete = {
-                        onDeleteActivity(trip.id, dayIdx, actIdx, act)
+                        viewModel.removeActivity(dayIdx, actIdx)
                         sheetRef = null
                     },
                     onGoMaps = { openInMaps(context, act) },
